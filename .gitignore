@@ -1,7 +1,13 @@
 # gitignore for bigmatch_utilities
+
 /bigmatchgui/backups/*.*      # ignore all files in the backups/ directory
+bigmatchgui/backups/          # ignore all files in the backups/ directory
+
 /bigmatchgui/config/*.*       # ignore all files in the config/ directory
+bigmatchgui/config/           # ignore all files in the config/ directory
+
 /bigmatchgui/datadicts/*.*    # ignore all files in the datadicts/ directory
+bigmatchgui/datadicts/        # ignore all files in the datadicts/ directory
 
 /bigmatchgui/errors/*.*       # ignore all files in the errors/ directory
 bigmatchgui/errors/           # ignore all files in the errors/ directory
@@ -10,7 +16,11 @@ errors/*.*                    # ignore all files in the errors/ directory
 /bigmatchgui/errors/*.dic     # ignore all files in the errors/ directory
 
 /bigmatchgui/logs/*.*         # ignore all files in the logs/ directory
+
 /bigmatchgui/matchpairs/*.*   # ignore all files in the matchpairs/ directory
+
+/bigmatchgui/parmfiles/*.*    # ignore all files in the parmfiles/ directory
+bigmatchgui/parmfiles/        # ignore all files in the parmfiles/ directory
 /samplematch/*.*
 
 
@@ -70,4 +80,5 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+
 
