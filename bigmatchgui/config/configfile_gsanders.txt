@@ -1,3 +1,0 @@
-#Chapin Hall python app config file for @user gsanders ~host CHRSD1-GSANDERS 201441163717
-
-cmd_onload=load_match_review

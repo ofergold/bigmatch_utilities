@@ -1,5 +1,16 @@
 # gitignore for bigmatch_utilities
 
+*.dat
+*.sas7bdat
+
+backups/
+config/
+datadicts/
+errors/
+logs/
+matchpairs/
+parmfiles/
+
 /bigmatchgui/backups/*.*      # ignore all files in the backups/ directory
 bigmatchgui/backups/          # ignore all files in the backups/ directory
 
@@ -23,9 +34,6 @@ errors/*.*                    # ignore all files in the errors/ directory
 bigmatchgui/parmfiles/        # ignore all files in the parmfiles/ directory
 
 #/samplematch/*.*
-
-*.dat
-*.sas7bdat
 
 #*********************************************************************************************************************************************
 # The following are recommended gitignore files for Python apps, taken from https://github.com/github/gitignore/blob/master/Python.gitignore

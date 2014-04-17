@@ -14,7 +14,7 @@ from os import path
 from FilePath import *
 from CHLog import *
 head, tail = os.path.split(os.path.realpath(__file__))
-sys.path.append(os.path.join(head, "lib", "sas7bdat_py3"))
+sys.path.append(os.path.join(head, "ch_lib", "sas7bdat_py3"))
 import sas7bdat
 from sas7bdat import *
 
