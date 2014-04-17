@@ -8,8 +8,10 @@ from tkinter.filedialog import askopenfilename
 from tkinter.messagebox import showerror
 import os
 import csv
+import datetime, time, sched
 from FilePath import *
 from BigMatchParmFile import *
+from CHLog import *
 
 gl_frame_color = "ivory"
 gl_frame_width = 500
@@ -21,6 +23,7 @@ class BlockingPass_Model():
     error_message = None
     parent_window = None                    #Parent_wiondow is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
+    logobject = None                        #Instantiation of CHLog class
     title = None
     bgcolor = None
     bgcolors = []
@@ -71,16 +74,17 @@ class BlockingPass_Model():
     default_m_value = 90  
     recfile_record_length = 880
     memfile_record_length = 880
-    btnDisplayBlkpasses = None
-    btnLoadParmFile = None
-    btnSaveToParmFile = None
-    b3 = None
-    b4 = None
     widget_registry = []
+    hold_time = None
 
     def __init__(self, parent_window, controller, title="Blocking pass", bgcolor=gl_frame_color, frame_width=gl_frame_width, frame_height=gl_frame_height):	
         self.parent_window = parent_window  #Parent_wiondow is the TKinter object itself (often known as "root"
         self.controller = controller		#Controller is the BigMatchController class in main.py 
+        now = datetime.datetime.now()
+        self.init_time = str(now.year) + str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0') + ' ' + str(now.hour).rjust(2,'0') + ':' + str(now.minute).rjust(2,'0')
+        self.logobject = CHLog(self.controller.enable_logging)
+        self.logobject.logit("\n\n____________________________________________________________________", True, True )
+        self.logobject.logit("%s In BlockingPass_Model._init_: title=%s" % (self.init_time, title), True, True )
         if title is not None:
             self.title = title
         else:
@@ -99,7 +103,6 @@ class BlockingPass_Model():
         self.bgcolors = ["#FDFFDF", "#DFFFF0", "#FDFFDF", "#DFFFF0", "#FDFFDF", "#DFFFF0", "#FDFFDF", "#DFFFF0", "#FDFFDF", "#DFFFF0"]
         #Load up the options for comparing match fields:
         self.load_compare_methods()
-
         #Read data dictionary file into Arrays:
         #self.datadict_recfile = os.path.join("c:\\", "greg", "code", "bigmatch_utilities", "BigMatchGUI", "recfile.dict.csv")
         #self.datadict_memfile = os.path.join("c:\\", "greg", "code", "bigmatch_utilities", "BigMatchGUI", "memfile.dict.csv")
@@ -111,6 +114,7 @@ class BlockingPass_Model():
         self.compare_methods.append("")
         self.compare_methods.append("c (exact string comparison)")
         self.compare_methods.append("uo (string comparison w/variation)")
+        self.compare_methods.append("uoi (inverted string comparison w/variation)")
         self.compare_methods.append("p (numeric comparison for age)")
         self.compare_methods.append("y (numeric comparison for year)")
         self.compare_methods.append("q (strict numeric for year/age)")
@@ -231,7 +235,7 @@ class BlockingPass_Model():
                 uniqid_column = None
                 for row in csvreader:
                     if(row_index == 0):       #Top (header) row in the Data Dictionary CSV
-                        print("*****locate_crucial_datadict_columns(): row[0] = " + str(row[0]) + " mem_or_rec: " + mem_or_rec + "***")
+                        self.logobject.logit("*****locate_crucial_datadict_columns(): row[0] = " + str(row[0]) + " mem_or_rec: " + mem_or_rec + "***", True, True)
                         column_index = 0
                         for cell in row:
                             #print("Row (" + str(row_index) + ") col (" + str(column_index) + "): " + str(cell) )
@@ -249,20 +253,21 @@ class BlockingPass_Model():
                                     uniqid_column = column_index
                                     print("unique_id_column = %s" % (column_index) )
                             column_index += 1
-                    break         #Automatically break after the first ROW in the file
+                    break         #Automatically break after the first ROW in the file, which is the header row in the Data Dictionary CSV
                 if mem_or_rec == "mem":
-                    print("Populating Crucial Metadata Properties for the MEM file.")
+                    self.logobject.logit("Populating Crucial Metadata Properties for the MEM file.", True, True)
                     self.fieldname_col_in_memfile_dict = colname_column
                     self.startpos_col_in_memfile_dict = startpos_column
                     self.width_col_in_memfile_dict = width_column
                     self.uniqid_col_in_memfile_dict = uniqid_column
                 elif mem_or_rec == "rec":
-                    print("Populating Crucial Metadata Properties for the REC file.")
+                    self.logobject.logit("Populating Crucial Metadata Properties for the REC file.", True, True)
                     self.fieldname_col_in_recfile_dict = colname_column
                     self.startpos_col_in_recfile_dict = startpos_column
                     self.width_col_in_recfile_dict = width_column
                     self.uniqid_col_in_recfile_dict = uniqid_column
                 print("\n mem_or_rec: %s. colname_column: %s, startpos_column: %s, width_column: %s, uniqid_column: %s" % (mem_or_rec, colname_column, startpos_column, width_column, uniqid_column) )
+                self.logobject.logit("\n mem_or_rec: %s. colname_column: %s, startpos_column: %s, width_column: %s, uniqid_column: %s" % (mem_or_rec, colname_column, startpos_column, width_column, uniqid_column), True, True )
                 if mem_or_rec == "mem":
                     if self.fieldname_col_in_memfile_dict is not None and self.startpos_col_in_memfile_dict is not None and self.width_col_in_memfile_dict is not None and self.uniqid_col_in_memfile_dict is not None:
                         success = True
@@ -563,115 +568,130 @@ class BlockingPass_Model():
 
     def create_parmf_file_from_blocking_passes(self):
         '''This method creates a new ParmF.txt parameter file from user input in the Blocking Pass forms. The user inputs have been copied to self.parmf_rows list, which has one row of controls per row f the ParmF.txt file.'''
-        self.trigger_pathf_assembly()         #Triggers function assemble_pathf_elements() to pull user inputs into an array. Required before writing the ParmF.txt parameter file.
-        #head, tail = os.path.split(self.bigmatch_parmf_file_to_save)
-        #self.parmf_file = os.path.join(head, "parmf.txt")
-        print("\n ParmF file will be saved to: %s \n" % (self.bigmatch_parmf_file_to_save) )
-        bigspace = "                    " 		
-        #For line 2 in ParmF.txt we need total number of passes, with number of blocking and matching fields for each pass. Loop thru the ParmF_Rows to count the number of non-empty blocking passes and blocking/matching fields:
-        self.blocking_passes = []
-        hold_section = section = ""
-        index = count_blocking_fields = count_matching_fields = count_populated_blocking_passes = 0
-        for row in self.parmf_rows:
-            if str(row["rowtype"]).lower() == "blocking_fields":          #BlockingFields are the first rows appearing in each Blocking Pass.
-                if hold_section != "blocking" and hold_section != "":     #We just encountered a new BLOCKING RUN PASS (and not the very first row of the list)
-                    print("In self.blocking_passes, Found a new Blocking Fields section")
-                    pass_ = {"index":index, "count_blocking_fields":count_blocking_fields, "count_matching_fields":count_matching_fields}
-                    self.blocking_passes.append(pass_)
-                    count_populated_blocking_passes += 1
-                    #After storing the values from the previous Blocking Pass, prep for next Blocking Pass
-                    count_blocking_fields = 0
-                    count_matching_fields = 0
-                    index += 1
-                count_blocking_fields += 1    #A blocking field found for the CURRENT PASS
-                hold_section = "blocking"
-            elif str(row["rowtype"]).lower() == "matching_fields":
-                count_matching_fields += 1
-                hold_section = "matching"
-
-        #After traversing the parms_rows list, finish out by writing the final pass's information to the blocking_passes list.
-        pass_ = {"index":index, "count_blocking_fields":count_blocking_fields, "count_matching_fields":count_matching_fields}
-        self.blocking_passes.append(pass_)
-        count_populated_blocking_passes += 1
-        #count_populated_blocking_passes = len(self.blocking_passes)
-        print("\n Final Blocking Pass totals:")
-        for pass_ in self.blocking_passes:
-            print(pass_)
-        print("\n")
-        #Armed with these totals-per-pass, open ParmF.txt for writing out the information: 
-        #with open(self.parmf_file, "w") as f:
-        #if os.path.isfile(self.bigmatch_parmf_file_to_save):
-        #    os.remove(self.bigmatch_parmf_file_to_save)		              #Should not need to delete the file, but it has been appending new text at end of file instead of erasing existing text and re-writing-- even though the file open uses "w" not "w+", and it is closed after every write session.
-        with open(self.bigmatch_parmf_file_to_save, "w") as f: 
-            #FIRST ROW.
-            #Line 1, which can be created using defaults (except for the first digit which specifies the number of blocking passes, and the 6th digit which is set to 1 if this is a single-file dedupe)
-            if self.dedupe_single_file == True:
-                dedupe_digit = "1"
-            else:
-                dedupe_digit = "0"
-            f.write(str(count_populated_blocking_passes) + " 1 1 0 1 " + str(dedupe_digit) + " 0 " + str(self.recfile_record_length) + " " + str(self.memfile_record_length) + " \n") 
-            #SECOND ROW.
-            #Line 2, write the number of blocking fields per pass to the file:
-            for pass_ in self.blocking_passes:
-                f.write(str(pass_["count_blocking_fields"]) + " ")
-            f.write("\n")
-            #Line 3, write the number of matching fields per pass to the file:
-            for pass_ in self.blocking_passes:
-                f.write(str(pass_["count_matching_fields"]) + " ")
-            f.write("\n")
-            #Now run thru the parmf_rows again, this time writing out the actual blocking pass fields:
+        success = True
+        try:		
+            self.trigger_pathf_assembly()         #Triggers function assemble_pathf_elements() to pull user inputs into an array. Required before writing the ParmF.txt parameter file.
+            #head, tail = os.path.split(self.bigmatch_parmf_file_to_save)
+            #self.parmf_file = os.path.join(head, "parmf.txt")
+            self.logobject.logit("\n ParmF file will be saved to: %s \n" % (self.bigmatch_parmf_file_to_save), True, True )
+            bigspace = "                    " 		
+            #For line 2 in ParmF.txt we need total number of passes, with number of blocking and matching fields for each pass. Loop thru the ParmF_Rows to count the number of non-empty blocking passes and blocking/matching fields:
+            self.blocking_passes = []
+            hold_section = section = ""
+            index = count_blocking_fields = count_matching_fields = count_populated_blocking_passes = 0
             for row in self.parmf_rows:
-                #print(row)
-                if str(row["rowtype"]).lower() == "blocking_fields":
-                    print(row)
-                    blocking_row_string = str(row["recfile_column"]).lower().ljust(10) + bigspace + str(row["recfile_startpos"]).ljust(4) + " " + str(row["recfile_width"]).ljust(5) + " " + str(row["memfile_startpos"]).ljust(4) + " " + str(row["memfile_width"]).ljust(5) + " " + str(row["blank_flag"]).ljust(4)
-                    f.write(blocking_row_string + "\n" )
+                if str(row["rowtype"]).lower() == "blocking_fields":          #BlockingFields are the first rows appearing in each Blocking Pass.
+                    if hold_section != "blocking" and hold_section != "":     #We just encountered a new BLOCKING RUN PASS (and not the very first row of the list)
+                        print("In self.blocking_passes, Found a new Blocking Fields section")
+                        pass_ = {"index":index, "count_blocking_fields":count_blocking_fields, "count_matching_fields":count_matching_fields}
+                        self.blocking_passes.append(pass_)
+                        count_populated_blocking_passes += 1
+                        #After storing the values from the previous Blocking Pass, prep for next Blocking Pass
+                        count_blocking_fields = 0
+                        count_matching_fields = 0
+                        index += 1
+                    count_blocking_fields += 1    #A blocking field found for the CURRENT PASS
+                    hold_section = "blocking"
                 elif str(row["rowtype"]).lower() == "matching_fields":
-                    #M-Value (matched):
-                    mvalue = str(row["m-value"])
-                    if mvalue == '' or mvalue is None:
-                        mvalue = '0'
-                    if float(mvalue) > 100:
-                        mvalue = "100"
-                    elif float(mvalue) == 100:
-                        mvalue = "1.00"
-                    elif float(mvalue) < 10:
-                        mvalue = "0.0" + str(round(float(mvalue),0)).replace(".0", "")
-                    elif float(mvalue) < 100:
-                        mvalue = "0." + str(round(float(mvalue),0)).replace(".0", "")
-                    #U-Value (unmatched):
-                    uvalue = str(row["u-value"])
-                    if uvalue == '' or mvalue is None:
-                        uvalue = '0'
-                    if float(uvalue) > 100:
-                        uvalue = "100"
-                    elif float(uvalue) == 100:
-                        uvalue = "1.00"
-                    elif float(uvalue) < 10:
-                        uvalue = "0.0" + str(round(float(uvalue),0)).replace(".0", "")
-                    elif float(uvalue) < 100:
-                        uvalue = "0." + str(round(float(uvalue),0)).replace(".0", "")
-                    blocking_row_string = str(row["recfile_column"]).lower().ljust(10) + bigspace + str(row["recfile_startpos"]).ljust(4) + " " + str(row["recfile_width"]).ljust(5) + " " + str(row["memfile_startpos"]).ljust(4) + " " + str(row["memfile_width"]).ljust(5) + " 0 " + str(row["comparison_method"]).ljust(5) + " " + mvalue.ljust(7) + " " + uvalue.ljust(7)
-                    #Write the row to the ParmF.txt parameters file
-                    f.write(blocking_row_string + "\n" )
-                elif str(row["rowtype"]).lower() == "cutoff_fields":
-                    cutoff_row_string = str(row["cutoff_hi"]).ljust(6) + " " + str(row["cutoff_low"]).ljust(4)
-                    f.write(cutoff_row_string + "\n" )
-                elif str(row["rowtype"]).lower() == "prcutoff_fields":
-                    cutoff_row_string = str(row["prcutoff_hi"]).ljust(6) + " " + str(row["prcutoff_low"]).ljust(4)
-                    f.write(cutoff_row_string + "\n" )
-            #Final Line of the ParmF.txt parameter file indicates column name, width and starting position for the Sequence Column in Record file and Memory file.
-            col_attribs = self.locate_sequence_column("rec")
-            if col_attribs is not None:
-                f.write(str(col_attribs["sequence_column_name"]).ljust(10) + bigspace + str(col_attribs["startpos"]) + " " + str(col_attribs["width"]) + " ")
-            col_attribs = self.locate_sequence_column("mem")
-            if col_attribs is not None:
-                f.write(col_attribs["startpos"] + " " +col_attribs["width"] + "\n")
+                    count_matching_fields += 1
+                    hold_section = "matching"
 
-            f.flush()
-            os.fsync(f.fileno())
-            f.close()
-            f = None
+            #After traversing the parms_rows list, finish out by writing the final pass's information to the blocking_passes list.
+            pass_ = {"index":index, "count_blocking_fields":count_blocking_fields, "count_matching_fields":count_matching_fields}
+            self.blocking_passes.append(pass_)
+            count_populated_blocking_passes += 1
+            #count_populated_blocking_passes = len(self.blocking_passes)
+            print("\n Final Blocking Pass totals:")
+            for pass_ in self.blocking_passes:
+                print(pass_)
+            print("\n")
+            #Armed with these totals-per-pass, open ParmF.txt for writing out the information: 
+            #with open(self.parmf_file, "w") as f:
+            #if os.path.isfile(self.bigmatch_parmf_file_to_save):
+            #    os.remove(self.bigmatch_parmf_file_to_save)		              #Should not need to delete the file, but it has been appending new text at end of file instead of erasing existing text and re-writing-- even though the file open uses "w" not "w+", and it is closed after every write session.
+            with open(self.bigmatch_parmf_file_to_save, "w") as f: 
+                #FIRST ROW.
+                #Line 1, which can be created using defaults (except for the first digit which specifies the number of blocking passes, and the 6th digit which is set to 1 if this is a single-file dedupe)
+                if self.dedupe_single_file == True:
+                    dedupe_digit = "1"
+                else:
+                    dedupe_digit = "0"
+                f.write(str(count_populated_blocking_passes) + " 1 1 0 1 " + str(dedupe_digit) + " 0 " + str(self.recfile_record_length) + " " + str(self.memfile_record_length) + " \n") 
+                #SECOND ROW.
+                #Line 2, write the number of blocking fields per pass to the file:
+                for pass_ in self.blocking_passes:
+                    f.write(str(pass_["count_blocking_fields"]) + " ")
+                f.write("\n")
+                #Line 3, write the number of matching fields per pass to the file:
+                for pass_ in self.blocking_passes:
+                    f.write(str(pass_["count_matching_fields"]) + " ")
+                f.write("\n")
+                #Now run thru the parmf_rows again, this time writing out the actual blocking pass fields:
+                for row in self.parmf_rows:
+                    #print(row)
+                    if str(row["rowtype"]).lower() == "blocking_fields":
+                        print(row)
+                        blocking_row_string = str(row["recfile_column"]).lower().ljust(10) + bigspace + str(row["recfile_startpos"]).ljust(4) + " " + str(row["recfile_width"]).ljust(5) + " " + str(row["memfile_startpos"]).ljust(4) + " " + str(row["memfile_width"]).ljust(5) + " " + str(row["blank_flag"]).ljust(4)
+                        f.write(blocking_row_string + "\n" )
+                    elif str(row["rowtype"]).lower() == "matching_fields":
+                        #M-Value (matched):
+                        mvalue = str(row["m-value"])
+                        if mvalue == '' or mvalue is None:
+                            mvalue = '0'
+                        if float(mvalue) > 100:
+                            mvalue = "100"
+                        elif float(mvalue) == 100:
+                            mvalue = "1.00"
+                        elif float(mvalue) < 10:
+                            mvalue = "0.0" + str(round(float(mvalue),0)).replace(".0", "")
+                        elif float(mvalue) < 100:
+                            mvalue = "0." + str(round(float(mvalue),0)).replace(".0", "")
+                        #U-Value (unmatched):
+                        uvalue = str(row["u-value"])
+                        if uvalue == '' or mvalue is None:
+                            uvalue = '0'
+                        if float(uvalue) > 100:
+                            uvalue = "100"
+                        elif float(uvalue) == 100:
+                            uvalue = "1.00"
+                        elif float(uvalue) < 10:
+                            uvalue = "0.0" + str(round(float(uvalue),0)).replace(".0", "")
+                        elif float(uvalue) < 100:
+                            uvalue = "0." + str(round(float(uvalue),0)).replace(".0", "")
+                        blocking_row_string = str(row["recfile_column"]).lower().ljust(10) + bigspace + str(row["recfile_startpos"]).ljust(4) + " " + str(row["recfile_width"]).ljust(5) + " " + str(row["memfile_startpos"]).ljust(4) + " " + str(row["memfile_width"]).ljust(5) + " 0 " + str(row["comparison_method"]).ljust(5) + " " + mvalue.ljust(7) + " " + uvalue.ljust(7)
+                        #Write the row to the ParmF.txt parameters file
+                        f.write(blocking_row_string + "\n" )
+                    elif str(row["rowtype"]).lower() == "cutoff_fields":
+                        cutoff_row_string = str(row["cutoff_hi"]).ljust(6) + " " + str(row["cutoff_low"]).ljust(4)
+                        f.write(cutoff_row_string + "\n" )
+                    elif str(row["rowtype"]).lower() == "prcutoff_fields":
+                        cutoff_row_string = str(row["prcutoff_hi"]).ljust(6) + " " + str(row["prcutoff_low"]).ljust(4)
+                        f.write(cutoff_row_string + "\n" )
+                #Final Line of the ParmF.txt parameter file indicates column name, width and starting position for the Sequence Column in Record file and Memory file.
+                col_attribs = self.locate_sequence_column("rec")
+                if col_attribs is not None:
+                    f.write(str(col_attribs["sequence_column_name"]).ljust(10) + bigspace + str(col_attribs["startpos"]) + " " + str(col_attribs["width"]) + " ")
+                col_attribs = self.locate_sequence_column("mem")
+                if col_attribs is not None:
+                    f.write(col_attribs["startpos"] + " " +col_attribs["width"] + "\n")
+
+                f.flush()
+                os.fsync(f.fileno())
+                f.close()
+                f = None
+                #Display a temporary message notifying the user that their file was created.
+                #self.hold_time = 
+                self.update_message_region("File has been saved")
+        except:
+            success = False
+            self.error_message = "Creation of ParmF.txt parameter file failed."
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback.print_exception(exc_type, exc_value, exc_traceback, limit=4, file=sys.stdout)
+            print("\n Line: %s" % (exc_traceback.tb_lineno) )
+            self.error_message = self.error_message + " - " + exc_value + ' --at Line: ' + str(exc_traceback.tb_lineno)
+        finally:
+            pass
+        return success
 
     #def nothing(self):
         
@@ -692,13 +712,14 @@ class BlockingPass_Model():
             fldnmindx = self.fieldname_col_in_recfile_dict
         if list:
             for item in list:
-                #if(int(startpos)==83):
-                #    print("SEEKING %s, FOUND %s" % (startpos, item[stposindx]) )
+                self.logobject.logit("SEEKING %s, FOUND %s" % (startpos, item[stposindx]), True, True )
                 if int(item[stposindx]) == int(startpos):
-                    #if(int(startpos)==83):
-                    #    print("GOT IT.")
+                    self.logobject.logit("GOT IT.", True, True)
                     return_value = str(item[fldnmindx])
-        print("\nGet_datfldnm_frdict_strtpos(), mem-rec=%s, startpo=%s, fldnmdx=%s, stposdx=%s, result=%s" % (mem_or_rec, startpos, fldnmindx, stposindx, return_value) )
+                    break
+        else:
+            self.error_message = "Expected meta-values list, but enncountered empty object."
+        self.logobject.logit("\nGET_Datfldnm_frdict_strtpos(), mem-rec=%s, startpo=%s, fldnmdx=%s, stposdx=%s, result=%s" % (mem_or_rec, startpos, fldnmindx, stposindx, return_value), True, True )
         return return_value
 
     def remove_widget(self):
@@ -711,12 +732,12 @@ class BlockingPass_Model():
         The loaded variables are to be displayed in the Blocking Pass entry forms, rendered by the current class (BlockingPass_Model)'''
         if load_or_save is not None:
             load_or_save = str(load_or_save).lower().strip()
-            if load_or_save == "load":
+            if load_or_save == "load":                  #LOAD indicates that the BigmatchParmfile() class is assisting in loading values from a PARMF.TXT file into this form.
                 if self.bigmatch_parmf_file_to_load:    #If the file has been specified, then load up a copy of the ParmFile object
                     self.parmfileobj = BigmatchParmfile(self.bigmatch_parmf_file_to_load)
-            if load_or_save == "save":
+                    self.parmfileobj.set_logobject(self.logobject)
+            if load_or_save == "save":                  #SAVE indicates that the BigmatchParmfile() class is assisting in saving values from this BloakingPass form to a PARMF.TXT file. NOT YET OPERATIONAL.
                 pass  #Not needed yet, but leave placeholder for future
-
 
     def get_current_variable_value(self, blocking_pass, row_type, control_type, data_column_name=''):
         #Based on an existing ParmF.txt parameter file, determine whether the control now being displayed has a corresponding stored value.
@@ -739,7 +760,7 @@ class BlockingPass_Model():
                     if str(parm["blocking_pass"]).lower() == blocking_pass and str(parm["row_type"]).lower() == row_type and str(parm["parm_type"]).lower() == control_type and str(parm["first_parm_in_row"]).lower() == data_column_name:
                         match = True
                 if match:
-                    print("**FOUND:BkPs %s, rwtp %s, pmtp %s 1stprminrw %s" % (blocking_pass, row_type, control_type, data_column_name) )
+                    #print("**FOUND:BkPs %s, rwtp %s, pmtp %s 1stprminrw %s" % (blocking_pass, row_type, control_type, data_column_name) )
                     #print("PARMFILE PARM: in get_current_varval, blkpass: %s, row_index: %s, row_type: %s, num_parms in row: %s, parm_index: %s, parm_type: %s, parm_value: %s, first_parm_in_row: %s" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["num_parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"], parm["first_parm_in_row"] ) )
                     #return_value = parm["parm_value"]
                     parmdict = parm.copy()
@@ -761,10 +782,10 @@ class BlockingPass_Model():
         #if self.blockingpass_view is None:
         blockingpass_view = self.instantiate_view_object(container, index)
         print("Kwargs for BlockingPass_Model.display_view(): ")
-        #print(str(kw))
-        #for key, value in kw.items():
-        #    print("%s = %s" % (key, value) )
-        print("\n In BlockingPass_Model.display_view(), calling blockingpass_view.initUI().")
+        self.logobject.logit(str(kw), True, True)
+        for key, value in kw.items():
+            self.logobject.logit("%s = %s" % (key, value), True, True )
+        self.logobject.logit("\n In BlockingPass_Model.display_view(), calling blockingpass_view.initUI().", True, True)
         blockingpass_view.initUI(**kw)   #DISPLAY THE FRAME OBJECT ON SCREEN
         return blockingpass_view
 
@@ -776,6 +797,7 @@ class BlockingPass_Model():
         if howmany_passes is None:
             howmany_passes = self.howmany_passes
         print("\n Top of BlockingPass_Model.display_views()")
+        self.logobject.logit("\n Top of BlockingPass_Model.display_views()", True, True)
         #DISPLAY THE SPECIFIED NUMBER OF BLOCKING PASS ENTRY FORMS (but only if the Data Dict files have been specified):
         if self.datadict_memfile and self.datadict_recfile:
             self.read_datadict_file_into_arrays(self.datadict_recfile, "rec")
@@ -801,49 +823,80 @@ class BlockingPass_Model():
             self.display_user_buttons(container)
 
     def display_openfile_dialogs(self, container):
-        self.display_openfile_dialog(container, self.datadict_recfile, "rec")
-        self.display_openfile_dialog(container, self.datadict_memfile, "mem")
-        self.display_openfile_dialog(container, self.bigmatch_parmf_file_to_load, "parmf_load")
-        self.display_openfile_dialog(container, self.bigmatch_parmf_file_to_save, "parmf_save")
+        self.display_openfile_dialog(container, self.datadict_recfile, "datadict", "open", "rec")
+        self.display_openfile_dialog(container, self.datadict_memfile, "datadict", "open", "mem")
+        self.display_openfile_dialog(container, self.bigmatch_parmf_file_to_load, "parmfile", "open", "")
+        self.display_openfile_dialog(container, self.bigmatch_parmf_file_to_save, "parmfile", "save_as", "")
 
-    def display_openfile_dialog(self, container, default_filepath='', which=''):
+    def display_openfile_dialog(self, container, current_file='', file_category='', open_or_save_as='', mem_or_rec=''):
         '''Whenever the user has an option (or requirement) to open or save a file, we instantiate the FilePath_Model() class. '''
         success = True
         caption = ''
         fpathobj = None
-        open_or_save_as = 'open'
         file_types = [('All files', '*'), ('Text files', '*.csv;*.txt')]
-        kw_fpath = {"bgcolor":self.bgcolor, "frame_width":"", "frame_height":"", "file_category":"datadict"}
-        if which.lower() == "mem":
-            kw_fpath["file_category"] = "datadict"
-            caption = "Memory file data dictionary:"
-            self.filepathobj_memfile = FilePath_Model(self.parent_window, self, self.controller, caption, open_or_save_as, caption, file_types, **kw_fpath)
-            fpathobj = self.filepathobj_memfile
-        elif which.lower() == "rec":
-            kw_fpath["file_category"] = "datadict"
-            caption = "Record file data dictionary:"
-            self.filepathobj_recfile = FilePath_Model(self.parent_window, self, self.controller, caption, open_or_save_as, caption, file_types, **kw_fpath)
-            fpathobj = self.filepathobj_recfile
-        elif which.lower() == "parmf_load":
-            kw_fpath["file_category"] = "parmfile"
-            caption = "Parameter file to load (optional):"
-            self.filepathobj_parmfile_to_load = FilePath_Model(self.parent_window, self, self.controller, caption, open_or_save_as, caption, file_types, **kw_fpath)
-            fpathobj = self.filepathobj_parmfile_to_load
-        elif which.lower() == "parmf_save":
-            kw_fpath["file_category"] = "parmfile"
-            open_or_save_as = "save_as"
-            caption = "Parameter file to save to:"
-            self.filepathobj_parmfile_to_save = FilePath_Model(self.parent_window, self, self.controller, caption, open_or_save_as, caption, file_types, **kw_fpath)
-            fpathobj = self.filepathobj_parmfile_to_save
+        #initial_dir = self.calc_initial_dir_for_file_open(current_file, file_category, mem_or_rec)      #Set a directory location where the FileOpen dialog will start out
+        kw_fpath = {"bgcolor":self.bgcolor, "frame_width":"", "frame_height":"", "file_category":file_category}     #, "initial_dir":initial_dir
+        self.logobject.logit("\nIn display_openfile_dialog(), filecat: %s, open-save: %s, mem-rec: %s, curfile: %s" % (file_category, open_or_save_as, mem_or_rec, current_file), True, True )
+        if file_category.lower().strip() == "datadict":	
+            if mem_or_rec.lower().strip() == "mem":
+                caption = "Memory file data dictionary:"
+                self.filepathobj_memfile = FilePath_Model(self.parent_window, self, self.controller, caption, open_or_save_as, caption, file_types, **kw_fpath)
+                fpathobj = self.filepathobj_memfile
+            elif mem_or_rec.lower() == "rec":
+                caption = "Record file data dictionary:"
+                self.filepathobj_recfile = FilePath_Model(self.parent_window, self, self.controller, caption, open_or_save_as, caption, file_types, **kw_fpath)
+                fpathobj = self.filepathobj_recfile
+        elif file_category.lower().strip() == "parmfile":
+            if open_or_save_as.lower().strip() == "open":
+                caption = "Parameter file to load (optional):"
+                self.filepathobj_parmfile_to_load = FilePath_Model(self.parent_window, self, self.controller, caption, open_or_save_as, caption, file_types, **kw_fpath)
+                fpathobj = self.filepathobj_parmfile_to_load
+            elif open_or_save_as.lower().strip() == "save_as":
+                caption = "Parameter file to save to:"
+                self.filepathobj_parmfile_to_save = FilePath_Model(self.parent_window, self, self.controller, caption, open_or_save_as, caption, file_types, **kw_fpath)
+                fpathobj = self.filepathobj_parmfile_to_save
         else:
-            self.error_message = "Invalid type: '%s'" % (which.lower()) 
+            success = False
+            self.error_message = "Invalid type: '%s'" % (file_category.lower()) 
             print("\n ERROR: %s" % (self.error_message) )
             self.controller.handle_error(self.error_message)
             return
         print("\n Type of fpathobj: '%s' \n" % (str(type(fpathobj)) ) )
-        fpathobj.display_view(container)	                      #Display the Open File dialog for user to select a data dict file
+        if fpathobj:
+            fpathobj.calc_initial_dir_for_file_open(current_file, file_category, mem_or_rec)      #Set a directory location where the FileOpen dialog will start out
+            fpathobj.display_view(container)	                      #Display the Open File dialog for user to select a data dict file
         return success
-		
+
+    '''def calc_initial_dir_for_file_open(self, current_file='', file_category='', mem_or_rec=''):
+        initial_dir = None
+        if current_file:
+            if os.path.isfile(current_file):                              #If a file is specified as initial directory, use the FOLDER, not the file.
+                head, tail = os.path.split(current_file)
+                initial_dir = head 
+        else:
+            file_category = file_category.lower().strip()                 #It's useful to know whether the file being opened is a DATADICT, PARM, etc. because the main BigMatch controller object (main.py) stores a record of the last folder location navigated to for each major file type.
+            if file_category == "datadict":
+                if mem_or_rec.lower() == "mem" and self.controller.mem_datadict_last_opened:
+                    head, tail = os.path.split(self.controller.mem_datadict_last_opened)
+                    initial_dir = head
+                elif mem_or_rec.lower() == "rec" and self.controller.rec_datadict_last_opened:
+                    head, tail = os.path.split(self.controller.rec_datadict_last_opened)
+                    initial_dir = head
+                else:
+                    initial_dir = self.controller.datadict_dir_last_opened
+            elif file_category == "parmfile":
+                initial_dir = self.controller.parmfile_dir_last_opened
+                self.logobject.logit("CalcInitDir(), parmfile_dir_last_opened: %s" % (self.controller.parmfile_dir_last_opened), True, True )
+        if not initial_dir:
+            initial_dir = self.controller.dir_last_opened                  #If we can't find a more specific history of user's previous folders opened, use the more generic:
+            self.logobject.logit("CalcInitDir(), found no specific matches so setting to %s" % (self.controller.dir_last_opened), True, True )
+        if not initial_dir:
+            #if no other strategy is found, punt and use the current executing program's folder
+            initial_dir = os.path.dirname(os.path.realpath(__file__))
+        self.logobject.logit("\nIn calc_initial_dir(), initdir is %s" % (initial_dir), True, True )
+        return initial_dir
+    '''
+
     def display_user_buttons(self, container):
         '''Function display_user_buttons shows one or more buttons near top of page for common user functions, so the user doesn't need to constantly hit the system menus. '''
         self.button_frame = Frame(container)
@@ -868,6 +921,23 @@ class BlockingPass_Model():
         #self.b3.grid(row=0, column=3, sticky=W)
         #self.b6 = Button(button_frame, text="Remove me", width=25, command=self.remove_widget)
         #self.b6.grid(row=0, column=3, sticky=W)
+        #self.b9 = Button(self.button_frame, text="Test msg", width=25, command=self.update_message_region)
+        #self.b9.grid(row=0, column=3, sticky=W)
+        #Create a Message Region where we can display text temporarily, such as "File was successfully saved"
+        msg = ""                       #Testing 123456789012345678901234567890123456789012345678901234567890"
+        self.message_region = Message(self.button_frame, text=msg) #self.message_region = Label(self.button_frame, text=msg)
+        self.message_region.grid(row=0, column=5, sticky=E)
+        kw = {"anchor":E, "width":800, "foreground":"dark green", "background":self.bgcolor, "borderwidth":1, "font":("Arial", 14, "bold"), "padx":8, "pady":3 }  
+        self.message_region.configure(**kw)
+
+    def update_message_region(self, text='', clear_after_ms=4000, **kw):
+        #if not text:
+        #    text = "Uh-oh"
+        self.message_region.configure(text=text)
+        self.message_region.after(clear_after_ms, self.clear_message_region)
+		
+    def clear_message_region(self):
+        self.message_region.configure(text="")
 
     def update_filepath(self, file_name_with_path='', callback_string='', alias=''):  
         '''Any FilePath objects created by this class will expect "Function update_file_path" to exist! FilePath objects alert their masters when a filepath is selected in an open-file dialog.'''
@@ -881,10 +951,11 @@ class BlockingPass_Model():
         print("\n BEFORE check_for_required_files: self.filepathobj_parmfile_to_save.file_name_with_path = '%s' and self.bigmatch_parmf_file_to_save = '%s'" % (self.filepathobj_parmfile_to_save.file_name_with_path, self.bigmatch_parmf_file_to_save) )
         #Refresh the Blocking Pass view when the user selects a new DataDict file.
         #self.display_view()
-        self.update_master_paths(file_name_with_path)
+        self.update_master_paths(file_name_with_path)                           #The main controller object (main.py) tracks the locations that the user has opened files in. Update that now.
+        self.update_initial_dir_for_file_open_dialogs()                         #Update the Tkinter file-open-dialog frames with the latest user selections of folders for file-open.
  
     def update_master_paths(self, file_name_with_path):
-        if file_name_with_path:		
+        if file_name_with_path:	
             head, tail = os.path.split(file_name_with_path)
             self.controller.dir_last_opened = head                              #The controller tracks last folders opened for this type, so that when the user is again prompted to open the same type of file, we can set this as the initial dir.
         if self.datadict_memfile:
@@ -892,13 +963,23 @@ class BlockingPass_Model():
             self.controller.datadict_dir_last_opened = head                     #The controller tracks last folders opened for this type, so that when the user is again prompted to open the same type of file, we can set this as the initial dir.
             self.controller.mem_datadict_last_opened = self.datadict_memfile    #The controller tracks last file opened of this type, so that when the user is again prompted to open the same type of file, we can default this value in.
         if self.datadict_recfile:
+            self.controller.datadict_dir_last_opened = head                     #The controller tracks last folders opened for this type, so that when the user is again prompted to open the same type of file, we can set this as the initial dir.
             self.controller.rec_datadict_last_opened = self.datadict_recfile    #The controller tracks last file opened of this type, so that when the user is again prompted to open the same type of file, we can default this value in.
-            self.controller.mem_datadict_last_opened = self.datadict_memfile    #The controller tracks last file opened of this type, so that when the user is again prompted to open the same type of file, we can default this value in.
         if self.bigmatch_parmf_file_to_load:
+            self.controller.parmfile_dir_last_opened = head                     #The controller tracks last folders opened for this type, so that when the user is again prompted to open the same type of file, we can set this as the initial dir.
             self.controller.parmf_last_opened = self.bigmatch_parmf_file_to_load #The controller tracks last file opened of this type, so that when the user is again prompted to open the same type of file, we can default this value in.
         if self.bigmatch_parmf_file_to_save:
+            self.controller.parmfile_dir_last_opened = head                     #The controller tracks last folders opened for this type, so that when the user is again prompted to open the same type of file, we can set this as the initial dir.
             self.controller.parmf_last_opened = self.bigmatch_parmf_file_to_save #The controller tracks last file opened of this type, so that when the user is again prompted to open the same type of file, we can default this value in.
-        print("\n Controller-saved paths-- LastDir: %s, LastDataDictDir: %s, LastRecDatadict: %s, LastMemDatadict: %s, LastParmFile: %s" % (self.controller.dir_last_opened, self.controller.datadict_dir_last_opened, self.controller.rec_datadict_last_opened, self.controller.mem_datadict_last_opened, self.controller.parmf_last_opened) )
+        self.logobject.logit("\n Controller-saved paths-- LastDir: %s, LastDataDictDir: %s, LastRecDatadict: %s, LastMemDatadict: %s, LastParmFile: %s" % (self.controller.dir_last_opened, self.controller.datadict_dir_last_opened, self.controller.rec_datadict_last_opened, self.controller.mem_datadict_last_opened, self.controller.parmf_last_opened), True, True )
+        
+    def update_initial_dir_for_file_open_dialogs(self):
+        '''In addition to tracking "last file opened" at the main controller level, 
+        we also want to notify every FilePath object when the user has opened a new file, so that they can adjust thir Initial DIr properties to the location just opened.'''
+        self.filepathobj_memfile.calc_initial_dir_for_file_open(self.datadict_memfile, "datadict", "mem")
+        self.filepathobj_recfile.calc_initial_dir_for_file_open(self.datadict_recfile, "datadict", "rec")
+        self.filepathobj_parmfile_to_load.calc_initial_dir_for_file_open(self.bigmatch_parmf_file_to_load, "parmfile", "")
+        self.filepathobj_parmfile_to_save.calc_initial_dir_for_file_open(self.bigmatch_parmf_file_to_save, "parmfile", "")
         
     '''def respond_to_recfiledict_select(self):
         self.datadict_recfile = self.filepathobj_recfile.file_name_with_path

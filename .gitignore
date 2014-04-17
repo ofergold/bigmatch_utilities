@@ -22,7 +22,7 @@ errors/*.*                    # ignore all files in the errors/ directory
 /bigmatchgui/parmfiles/*.*    # ignore all files in the parmfiles/ directory
 bigmatchgui/parmfiles/        # ignore all files in the parmfiles/ directory
 
-/samplematch/*.*
+#/samplematch/*.*
 
 
 #*********************************************************************************************************************************************

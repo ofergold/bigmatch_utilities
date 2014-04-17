@@ -11,6 +11,7 @@ from BlockingPass import *
 from DataDict import *
 from FilePath import *
 from MatchReview import *
+from ConvertFile import *
 from BigMatchParmFile import *
 from CHLog import *
 from CHUser import *
@@ -35,7 +36,10 @@ class BigMatchController():
     filepathobj_memfile_dict = None
     dir_last_opened = None
     datadict_dir_last_opened = None
+    blockingpass_dir_last_opened = None
     parmfile_dir_last_opened = None
+    resultfile_last_opened = None
+    convertfile_last_opened = None
     rec_datadict_last_opened = None
     mem_datadict_last_opened = None 
     parmf_last_opened = None
@@ -56,7 +60,8 @@ class BigMatchController():
         self.parent_window.columnconfigure(0, weight=0, pad=3)
         self.parent_window.rowconfigure(0, weight=0, pad=3)
         self.host_name = socket.gethostname()
-        print("\n hostname: %s, user: %s" % (self.host_name, getpass.getuser() ) )
+        print("\n--------------------------------------------------------------------------------")
+        print("\n STARTING NEW SESSION. hostname: %s, user: %s" % (self.host_name, getpass.getuser() ) )
         #Get operating system info
         self.os_name = os.name
         self.os_platform = platform.system()
@@ -70,7 +75,7 @@ class BigMatchController():
             self.log = CHLog()
             logtest = self.log.test_subfolder_filewrite()
             print("Logging write test returned %s)" % (logtest) )
-            self.enable_logging = logtest
+            self.enable_logging = logtest             #If test failed, set enable_logging to False
             if not self.enable_logging:
                 print("Logging write test failed")
                 self.log = None
@@ -78,7 +83,7 @@ class BigMatchController():
             self.user = CHUser()
         self.bigmatch_exe_location = self.get_bigmatch_exe_location()
         head, tail = os.path.split(os.path.abspath(__file__))
-        self.update_controller_dirpaths(head)
+        #self.update_controller_dirpaths(head)            #No need to set this to a default location at the outset.  That default-setting is handled by the individual FilePath objects.
 
         ## Grid sizing behavior in window
         self.parent_window.grid_rowconfigure(0, weight=1) 
@@ -133,16 +138,25 @@ class BigMatchController():
         blockMenu.add_command(label="Create parameter file from blocking passes", command=self.load_blocking_passes)
         menubar.add_cascade(label="Blocking passes", menu=blockMenu)
 
-				
         reviewMenu = Menu(menubar, tearoff=0)
         reviewMenu.add_command(label="Review match results", command=self.load_match_review)
         menubar.add_cascade(label="Match results", menu=reviewMenu)
+
+        '''def get_command_for_file_convert_sas_to_text():
+            cmd_string = "self.load_convert_file('sas', 'text')"
+            print("\nReturning the string %s" % (cmd_string) )
+            return cmd_string'''
+
+        convertMenu = Menu(menubar, tearoff=0)
+        convertMenu.add_command(label="Convert SAS file to text", command=self.load_convert_file_sas_to_text)
+        menubar.add_cascade(label="Convert files", menu=convertMenu)
 
         if self.enable_logging:
             defltMenu = Menu(menubar, tearoff=0)
             defltMenu.add_command(label="Set startup to Data Dictionary", command=self.set_startup_module_to_data_dict)
             defltMenu.add_command(label="Set startup to Blocking Pass", command=self.set_startup_module_to_blocking_pass)
             defltMenu.add_command(label="Set startup to Match Review", command=self.set_startup_module_to_match_review)
+            defltMenu.add_command(label="Set startup to File Conversion", command=self.set_startup_module_to_file_convert)
             menubar.add_cascade(label="Default settings", menu=defltMenu)
         
         #if self.bigmatch_exe_location:
@@ -171,12 +185,14 @@ class BigMatchController():
                 self.load_blocking_passes()
             elif setting.lower().strip() == "load_match_review":
                 self.load_match_review()
+            elif setting.lower().strip() == "load_convert_file":
+                self.load_convert_file()
             else:
                 self.load_recfile_datadict()
         else:
             self.load_recfile_datadict()
 
-    def update_controller_dirpaths(self, file_name_with_path):                       #Make sure that the default folders are always populated from the moment of launch
+    def update_controller_dirpaths(self, file_name_with_path):     #Set default locations for FileOpen dialogs at session launch.
         if file_name_with_path:
             head, tail = os.path.split(file_name_with_path)
             self.dir_last_opened = head
@@ -250,12 +266,37 @@ class BigMatchController():
         self.blockingpass_model = BlockingPass_Model(self.parent_window, self)
         self.blockingpass_model.display_views(self.bigcanvas.bigframe, 6)
 
+    def load_blocking_pass_from_parmfile(self):
+        parmfile = os.path.join('C:\Greg', 'code', 'bigmatch_utilities', 'BigMatchGui', 'parmf.txt')
+        parmfileobj = BigmatchParmfile(parmfile)
+        for parm in parmfileobj.parms:
+            print("PARMFILE PARM: blkpass: %s, row_index: %s, row_type: %s, parms in row: %s, parm_index: %s, parm_type: %s, parm_value: %s" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"] ) )
+
     def load_match_review(self):
         self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
         self.load_splash("Chapin Hall's BigMatch user interface -- review match results")
         self.matchreview_model = MatchReview_Model(self.parent_window, self)
         #self.matchreview_model.display_view(self.bigcanvas.bigframe)
         self.matchreview_model.display_views(self.bigcanvas.bigframe, 1)
+
+    '''def load_convert_file(self, source_format="sas", output_format="text"):
+        print("\nIn MAIN, load_convert_file() with source %s and output %s" % (source_format, output_format) ) 
+        self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
+        self.load_splash("Chapin Hall's BigMatch user interface -- convert files")
+        self.convertfile_model = ConvertFile_Model(self.parent_window, self, source_format, output_format)
+        self.convertfile_model.display_view(self.bigcanvas.bigframe)'''
+
+    def instantiate_convert_file(self, source_format=None, output_format=None):
+        print("\nIn MAIN, load_convert_file() with source %s and output %s" % (source_format, output_format) ) 
+        self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
+        self.load_splash("Chapin Hall's BigMatch user interface -- convert files")
+        self.convertfile_model = ConvertFile_Model(self.parent_window, self, source_format, output_format)
+        self.convertfile_model.display_view(self.bigcanvas.bigframe)
+
+    def load_convert_file_sas_to_text(self):
+        self.instantiate_convert_file("sas", "text")
+        #self.convertfile_model.set_source_format("sas")
+        #self.convertfile_model.set_output_format("text")
 
     def generate_parmfile(self, filename_with_path=''):
         print("This function is not yet available.")
@@ -269,12 +310,6 @@ class BigMatchController():
         self.bigcanvas.bigframe.clear_canvas()
         self.load_splash(error_message)
 
-    def load_blocking_pass_from_parmfile(self):
-        parmfile = os.path.join('C:\Greg', 'code', 'bigmatch_utilities', 'BigMatchGui', 'parmf.txt')
-        parmfileobj = BigmatchParmfile(parmfile)
-        for parm in parmfileobj.parms:
-            print("PARMFILE PARM: blkpass: %s, row_index: %s, row_type: %s, parms in row: %s, parm_index: %s, parm_type: %s, parm_value: %s" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"] ) )
-
     def refresh_main_canvas(self):
         self.bigcanvas.bigframe.update_idletasks()
         self.bigcanvas.update_idletasks()
@@ -285,6 +320,9 @@ class BigMatchController():
 
     def set_startup_module_to_match_review(self):
         self.user.write_setting_to_config_file('cmd_onload', 'load_match_review')
+
+    def set_startup_module_to_file_convert(self):
+        self.user.write_setting_to_config_file('cmd_onload', 'load_convert_file')
 
     def set_startup_module_to_data_dict(self):
         self.user.write_setting_to_config_file('cmd_onload', 'load_recfile_datadict')
@@ -303,6 +341,11 @@ class BigMatchController():
         process = subprocess.Popen(self.bigmatch_exe_location, stdout=subprocess.PIPE, creationflags=0x08000000)
         process.wait()
            
+    def get_command_for_file_convert_sas_to_text(self):
+        cmd_string = "self.load_convert_file('sas', 'text')"
+        print("\nReturning the string %s" % (cmd_string) )
+        return cmd_string
+
 		
 #******************************************************************************
 class ScrollCanvas(Canvas):
@@ -378,7 +421,7 @@ class BigFrame(Frame):
         if self.widgetstack:
             i = 0
             for widget in self.widgetstack:
-                print("Next to clear: " + str(type(widget)) + " " + str(i))
+                print("Next widget to clear: " + str(type(widget)) + " " + str(i))
                 widget.grid_forget()									#Remove the next widget from visible display    
                 i += 1
             self.refresh_canvas()

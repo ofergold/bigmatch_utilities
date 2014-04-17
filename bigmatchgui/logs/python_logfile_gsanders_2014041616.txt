@@ -1,0 +1,34 @@
+
+Python log file...testing file write at 2014041616
+
+
+____________________________________________________________________
+20140416 16:12 In MatchReview_Model._init_: title=Linkage results -- review
+
+In ConvertFile._init_: source_file = 'None' -- and show_view=None
+
+In calc_initial_dir(), initdir is C:/Greg/Code/Python/SASreader/SampleSAS
+
+In calc_initial_dir(), initdir is C:/Greg/Code/Python/SASreader/SampleSAS
+
+In calc_initial_dir(), initdir is C:/Greg/Code/Python/SASreader/SampleSAS
+CalcInitDir(), found no specific matches so setting to C:/Greg/Code/Python/SASreader/SampleSAS
+
+In calc_initial_dir(), initdir is C:/Greg/Code/Python/SASreader/SampleSAS
+
+Python log file...testing file write at 2014041616
+
+
+____________________________________________________________________
+20140416 16:16 In MatchReview_Model._init_: title=Linkage results -- review
+
+In ConvertFile._init_: source_file = 'None' -- and show_view=None
+
+In calc_initial_dir(), initdir is C:/Greg/Code/Python/SASreader/SampleSAS
+
+In calc_initial_dir(), initdir is C:/Greg/Code/Python/SASreader/SampleSAS
+
+In calc_initial_dir(), initdir is C:/Greg/Code/Python/SASreader/SampleSAS
+CalcInitDir(), found no specific matches so setting to C:/Greg/Code/Python/SASreader
+
+In calc_initial_dir(), initdir is C:/Greg/Code/Python/SASreader

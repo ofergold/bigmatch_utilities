@@ -17,6 +17,7 @@ class CHLog():
     debug = True
     testmode = True
     error_message = None
+    enable_file_logging = False
     logfile = None
     logfile_dir = ''	
     logfile_handle = None
@@ -34,7 +35,8 @@ class CHLog():
     os_platform = None
     os_release = None
 
-    def __init__(self):
+    def __init__(self, enable_file_logging=False):        #Because of problems with file write permissions, logging is restricted to console output by default.  When environment is file-write enabled, enable file logging here.
+        self.enable_file_logging = enable_file_logging
         self.uid = getpass.getuser()
         print("\n uid: %s" % (self.uid) )
         self.initialize()
@@ -47,15 +49,16 @@ class CHLog():
         #Date/time info
         now = datetime.datetime.now()
         self.stamp = str(now.year) + str(now.month) + str(now.day) + str(now.hour) + str(now.minute) + str(now.second)
-        self.hour_stamp = str(now.year) + str(now.month) + str(now.day) + str(now.hour)
+        self.hour_stamp = str(now.year) + str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0') + str(now.hour).rjust(2,'0')
         if not self.logfile_dir:
             head, tail = os.path.split(os.path.abspath(__file__))
             self.logfile_dir = head
-        if not os.path.isdir(self.logfile_dir):
-            os.mkdir(self.logfile_dir) 
-        self.logfile = os.path.join(self.logfile_dir, "logs", "python_logfile_" + self.uid + "_" + self.hour_stamp + ".txt")
-        print("\n dir: %s, logfile: %s" % (self.logfile_dir, self.logfile) )
-        self.create_logfile()
+        self.logfile = os.path.join(self.logfile_dir, "logs", "python_logfile_" + self.uid + "_" + self.hour_stamp + ".txt")  
+        print("\n In log object, log-dir: %s, logfile: %s" % (self.logfile_dir, self.logfile) )
+        if self.enable_file_logging:
+            if not os.path.isdir(self.logfile_dir):
+                os.mkdir(self.logfile_dir) 
+            self.create_logfile()
         self.initialized = True
 
     def create_logfile(self):
@@ -69,7 +72,8 @@ class CHLog():
     def open_logfile(self):
         if not os.path.isfile(self.logfile):
             self.create_logfile()
-        self.logfile_handle = open(self.logfile, 'ab')
+        #self.logfile_handle = open(self.logfile, 'ab')
+        self.logfile_handle = open(self.logfile, 'a')
         self.logfile_is_open = True
 
     def close_logfile(self):
@@ -77,7 +81,7 @@ class CHLog():
         self.logfile_is_open = False
 
     def logit(self, text, to_console=False, to_logfile=False, to_db=False, to_browser=False):
-        '''docstring '''
+        '''At its simplest, function logit() displays text in the command line console window. It can also write that text to a file or db, if permissions are sufficient. '''
         #Always log to console if TestMode is True, or if an error has occurred:
         if(self.testmode):
             to_console = True
@@ -94,30 +98,36 @@ class CHLog():
         if(to_console):
            	print(text)
         if(to_logfile):
-            print("###Text to log file: ")
-            print(text)
-            if(text != '' and text is not None):
-                if(self.logfile_is_open == False):
-                    self.open_logfile()
+            if self.enable_file_logging:      #Because of problems with file write permissions, logging is restricted to console output by default.  When environment is file-write enabled, enable file logging here.
+                #print("#-#Text to log file:")
+                #print(text)
+                #if(text != '' and text is not None):
+                if text:
+                    #if(self.logfile_is_open == False):
+                    if not self.logfile_is_open:
+                        self.open_logfile()
                 typ = str(type(text)).lower().replace("<class '", "").replace("'>", "")
-                print("###Type of text: " + typ)
-                if str(type(text)).lower() == "str":
-                    self.logfile_handle.write(text.encode('utf-8'))
-                elif str(type(text)).lower() == "list":
+                #print("#--#Type of log text: " + typ)
+                if typ == "str":
+                    #print("\nAbout to write string to logfile")
+                    #self.logfile_handle.write(text.encode('utf-8'))
+                    self.logfile_handle.write(text)
+                elif typ == "list":
                     for item in list:
-                        if str(type(item)).lower() == "str":
+                        if str(type(text)).lower().replace("<class '", "").replace("'>", "") == "str":
                             self.logfile_handle.write(text.encode('utf-8'))
-                elif str(type(text)).lower() == "dict":
+                elif typ == "dict":
                     for key, value in text:
                         self.logfile_handle.write("%s = %s" % (str(key), str(value) ) )
-                #self.logfile_handle.write("\n")
+                self.logfile_handle.write("\n")
                 self.close_logfile()
 
     def test_subfolder_filewrite(self):
+        '''Because of problems with file write permissions, logging is restricted to console output by default.  When environment is file-write enabled, enable file logging here. '''
         return_value = True
         try:
             with open(self.logfile, 'a') as logfile:
-                logfile.write("\n" + "Python log file " + self.hour_stamp + "\n")
+                logfile.write("\nPython log file...testing file write at " + self.hour_stamp + "\n")
         except IOError:
             return_value = False
         return return_value

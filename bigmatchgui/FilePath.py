@@ -9,6 +9,7 @@ from tkinter.messagebox import showerror
 from TkEntry import EntryGrid
 import os 
 from os import path
+from CHLog import *
 
 gl_frame_color = "ivory"
 gl_frame_width = 400
@@ -22,12 +23,13 @@ class FilePath_Model():
     parent_window = None	
     controller = None          #Controller is the BigMatch MAIN class file
     master = None              #Master is the object needing to locate a file.  This might be the DataDict class, the BlockingPass class or another object.
+    logobject = None           #Instantiation of CHLog class
     file_types = []
     file_name = None
     file_path = None
     file_name_with_path = None
     view_object = None
-    initial_dir = None
+    initial_dir = None         #Initial dir is the default location where the user's navigation will start (example: "C:\Temp\").  This can be set and re-set by the object that created it.
     title = ''
     bgcolor = ''
     frame_width = None
@@ -42,10 +44,15 @@ class FilePath_Model():
             self.parent_window = parent_window
         if master:
             self.master = master            #Master is the object needing to locate a file.  This might be the DataDict class, the BlockingPass class or another object.
+        enable_logging = False
         if controller:
             self.controller = controller    #Controller is the BigMatchController class in main.py 
+            enable_logging = self.controller.enable_logging
+        self.logobject = CHLog(enable_logging)
+        #if initial_dir:                    #Initial_Dir is now included in the **Kwargs
+        #    self.initial_dir = str(initial_dir)
         if title:
-            self.title = title
+            self.title = title  #Initial_Dir is now in the **Kwargs
         if open_or_save_as:
             self.open_or_save_as = open_or_save_as    #open_or_save_as specifies whether this FilePath dialog will open an existing file (tkinter "askopenfilename"), or prompt user to "Save As..." (tkinter "asksaveasfilename")
         if alias:
@@ -128,6 +135,37 @@ class FilePath_Model():
         callback_string = self.open_or_save_as
         self.master.update_filepath("", callback_string)   #Alert the parent module (datadict, blockingpass, etc.) that a file name/path was changed!
 
+    def calc_initial_dir_for_file_open(self, current_file='', file_category='', mem_or_rec=''):
+        initial_dir = None
+        if current_file:
+            if os.path.isfile(current_file):                              #If a file is specified as initial directory, use the FOLDER, not the file.
+                head, tail = os.path.split(current_file)
+                initial_dir = head 
+        else:
+            file_category = file_category.lower().strip()                 #It's useful to know whether the file being opened is a DATADICT, PARM, etc. because the main BigMatch controller object (main.py) stores a record of the last folder location navigated to for each major file type.
+            if file_category == "datadict":
+                if mem_or_rec.lower() == "mem" and self.controller.mem_datadict_last_opened:
+                    head, tail = os.path.split(self.controller.mem_datadict_last_opened)
+                    initial_dir = head
+                elif mem_or_rec.lower() == "rec" and self.controller.rec_datadict_last_opened:
+                    head, tail = os.path.split(self.controller.rec_datadict_last_opened)
+                    initial_dir = head
+                else:
+                    initial_dir = self.controller.datadict_dir_last_opened
+            elif file_category == "parmfile":
+                initial_dir = self.controller.parmfile_dir_last_opened
+                self.logobject.logit("CalcInitDir(), parmfile_dir_last_opened: %s" % (self.controller.parmfile_dir_last_opened), True, True )
+        if not initial_dir:
+            initial_dir = self.controller.dir_last_opened                  #If we can't find a more specific history of user's previous folders opened, use the more generic:
+            self.logobject.logit("CalcInitDir(), found no specific matches so setting to %s" % (self.controller.dir_last_opened), True, True )
+        if not initial_dir:
+            #if no other strategy is found, punt and use the current executing program's folder
+            initial_dir = os.path.dirname(os.path.realpath(__file__))
+        self.logobject.logit("\nIn calc_initial_dir(), initdir is %s" % (initial_dir), True, True )
+        #Set the Initial_Dir property to the calculated value:
+        self.initial_dir = initial_dir
+        return initial_dir
+
     def instantiate_view_object(self, container):
         self.view_object = FilePath_View(container, self) 
 
@@ -208,7 +246,7 @@ class FilePath_View(Frame):
     def display_user_buttons(self, open_or_save_as='open'):
         '''Function display_user_buttons shows one or more buttons near top of page for common user functions, so the user doesn't need to contantly hit the system menus.
         open_or_save_as specifies whether this FilePath dialog will open an existing file (tkinter "askopenfilename"), or prompt user to "Save As..." (tkinter "asksaveasfilename") '''
-        print("In FilePath_View.display_buttons (open_or_save_as = %s)", (open_or_save_as) )
+        print("In FilePath_View.display_buttons (open_or_save_as = %s)" % (open_or_save_as) )
         #self.btnOpen = Button(self, text="Browse", width=20, command=self.model.locate_file)
         #The button click will call function locate_file() OR save_as_file(), and will let this function know that it should notify the Master object (a DataDict, BlockingPass or other class instance) when the user has selected a file.
         callback_string = 'Testing123'
@@ -236,4 +274,4 @@ def main():
     root.mainloop()
 
 if __name__ == '__main__':
-    main()  
+    main() 

@@ -105,20 +105,20 @@ class CHUser():
                 self.configfile_rowcount = len(self.file_rows)
                 found = False
                 for row in self.file_rows:                          #Iterate thru the rows of text, and for each row create a ParmRow object
-                    print("\n -Row %s: %s" % (self.row_index, row) )
-                    print("\n (%s) -Seeking '%s', found '%s'" % (self.row_index, key, row[:len(key)].lower().strip() ) )
+                    print("-Row %s: %s" % (self.row_index, row) )
+                    print("(%s) -Seeking '%s', found '%s'" % (self.row_index, key, row[:len(key)].lower().strip() ) )
                     if row[:len(key)].lower().strip() + '=' == key.lower().strip() + '=':
                         found = True
-                        print("\n -Found '%s' in row %s, will return this value." % (key, self.row_index) )
+                        print("-Found '%s' in row %s, will return this value." % (key, self.row_index) )
                         row_to_return = row
                         break
                     self.row_index += 1
                 f.close()
-                print("\n -Found? %s" % (str(found)) )
+                print("-Found? %s" % (str(found)) )
                 if found:
                     row_to_return = row_to_return[len(key):]
                     row_to_return = row_to_return.replace("=", "")
-            print("\n -Return from GetSetting: '%s'" % (row_to_return) )
+            print("-Return from GetSetting: '%s'" % (row_to_return) )
         return row_to_return
 
     def write_setting_to_config_file(self, key='', value=''):

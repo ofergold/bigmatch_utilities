@@ -1,0 +1,157 @@
+
+Python log file...testing file write at 2014041710
+
+
+____________________________________________________________________
+20140417 10:20 In MatchReview_Model._init_: title=Linkage results -- review
+
+In DataDict._init_: datadict_file_to_load_from = 'None' -- and show_view=None
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+CalcInitDir(), found no specific matches so setting to C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+Python log file...testing file write at 2014041710
+
+
+____________________________________________________________________
+20140417 10:33 In MatchReview_Model._init_: title=Linkage results -- review
+
+In DataDict._init_: datadict_file_to_load_from = 'None' -- and show_view=None
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+CalcInitDir(), found no specific matches so setting to C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+
+____________________________________________________________________
+20140417 10:48 In BlockingPass_Model._init_: title=Blocking pass
+
+ Top of BlockingPass_Model.display_views()
+
+In display_openfile_dialog(), filecat: datadict, open-save: open, mem-rec: rec, curfile: None
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+In display_openfile_dialog(), filecat: datadict, open-save: open, mem-rec: mem, curfile: None
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+In display_openfile_dialog(), filecat: parmfile, open-save: open, mem-rec: , curfile: None
+CalcInitDir(), parmfile_dir_last_opened: None
+CalcInitDir(), found no specific matches so setting to C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+In display_openfile_dialog(), filecat: parmfile, open-save: save_as, mem-rec: , curfile: None
+CalcInitDir(), parmfile_dir_last_opened: None
+CalcInitDir(), found no specific matches so setting to C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+ Controller-saved paths-- LastDir: C:/Greg/ChapinHall/CCTS/Match, LastDataDictDir: C:/Greg/ChapinHall/CCTS/Match, LastRecDatadict: C:/Greg/ChapinHall/CCTS/Match/CCTS_master_2009_13_datadict.csv, LastMemDatadict: C:/Greg/ChapinHall/CCTS/Match/Sample_datadict.csv, LastParmFile: None
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+CalcInitDir(), parmfile_dir_last_opened: None
+CalcInitDir(), found no specific matches so setting to C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+CalcInitDir(), parmfile_dir_last_opened: None
+CalcInitDir(), found no specific matches so setting to C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+ Controller-saved paths-- LastDir: C:/Greg/ChapinHall/CCTS/Match, LastDataDictDir: C:/Greg/ChapinHall/CCTS/Match, LastRecDatadict: C:/Greg/ChapinHall/CCTS/Match/CCTS_master_2009_13_datadict.csv, LastMemDatadict: C:/Greg/ChapinHall/CCTS/Match/Sample_datadict.csv, LastParmFile: None
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+CalcInitDir(), parmfile_dir_last_opened: None
+CalcInitDir(), found no specific matches so setting to C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+CalcInitDir(), parmfile_dir_last_opened: None
+CalcInitDir(), found no specific matches so setting to C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+ Controller-saved paths-- LastDir: C:/Greg/ChapinHall/CCTS/Match, LastDataDictDir: C:/Greg/ChapinHall/CCTS/Match, LastRecDatadict: C:/Greg/ChapinHall/CCTS/Match/CCTS_master_2009_13_datadict.csv, LastMemDatadict: C:/Greg/ChapinHall/CCTS/Match/Sample_datadict.csv, LastParmFile: C:/Greg/ChapinHall/CCTS/Match/parmf.txt
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+CalcInitDir(), parmfile_dir_last_opened: C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+CalcInitDir(), found no specific matches so setting to C:/Greg/ChapinHall/CCTS/Match
+
+In calc_initial_dir(), initdir is C:/Greg/ChapinHall/CCTS/Match
+
+ Top of BlockingPass_Model.display_views()
+*****locate_crucial_datadict_columns(): row[0] = column_name mem_or_rec: rec***
+Populating Crucial Metadata Properties for the REC file.
+
+ mem_or_rec: rec. colname_column: 0, startpos_column: 1, width_column: 2, uniqid_column: 3
+*****locate_crucial_datadict_columns(): row[0] = column_name mem_or_rec: mem***
+Populating Crucial Metadata Properties for the MEM file.
+
+ mem_or_rec: mem. colname_column: 0, startpos_column: 1, width_column: 2, uniqid_column: 3
+{'width': 500, 'padx': 3, 'pady': 3, 'borderwidth': 2, 'background': '#FDFFDF'}
+width = 500
+padx = 3
+pady = 3
+borderwidth = 2
+background = #FDFFDF
+
+ In BlockingPass_Model.display_view(), calling blockingpass_view.initUI().
+{'width': 500, 'padx': 3, 'pady': 3, 'borderwidth': 2, 'background': '#DFFFF0'}
+width = 500
+padx = 3
+pady = 3
+borderwidth = 2
+background = #DFFFF0
+
+ In BlockingPass_Model.display_view(), calling blockingpass_view.initUI().
+{'width': 500, 'padx': 3, 'pady': 3, 'borderwidth': 2, 'background': '#FDFFDF'}
+width = 500
+padx = 3
+pady = 3
+borderwidth = 2
+background = #FDFFDF
+
+ In BlockingPass_Model.display_view(), calling blockingpass_view.initUI().
+{'width': 500, 'padx': 3, 'pady': 3, 'borderwidth': 2, 'background': '#DFFFF0'}
+width = 500
+padx = 3
+pady = 3
+borderwidth = 2
+background = #DFFFF0
+
+ In BlockingPass_Model.display_view(), calling blockingpass_view.initUI().
+{'width': 500, 'padx': 3, 'pady': 3, 'borderwidth': 2, 'background': '#FDFFDF'}
+width = 500
+padx = 3
+pady = 3
+borderwidth = 2
+background = #FDFFDF
+
+ In BlockingPass_Model.display_view(), calling blockingpass_view.initUI().
+{'width': 500, 'padx': 3, 'pady': 3, 'borderwidth': 2, 'background': '#DFFFF0'}
+width = 500
+padx = 3
+pady = 3
+borderwidth = 2
+background = #DFFFF0
+
+ In BlockingPass_Model.display_view(), calling blockingpass_view.initUI().
+
+ ParmF file will be saved to: C:/Greg/ChapinHall/CCTS/Match/parmf.txt 
+

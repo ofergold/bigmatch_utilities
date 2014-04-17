@@ -19,6 +19,8 @@ gl_frame_height = 100
 
 #******************************************************************************
 class MatchReview_Model():
+    ''' Display a standard BigMatch result file for the user, so that potential matches can be assessed and either accepted or rejected.
+    The logic of displaying these pairs falls to the View class (see below, class MatchReview_View())'''
     debug = True
     error_message = None
     parent_window = None                    #Parent_window is the TKinter object itself (often known as "root"
@@ -56,7 +58,11 @@ class MatchReview_Model():
     def __init__(self, parent_window, controller, title="Linkage results -- review", bgcolor=gl_frame_color, frame_width=gl_frame_width, frame_height=gl_frame_height):	
         self.parent_window = parent_window  #Parent_wiondow is the TKinter object itself (often known as "root"
         self.controller = controller		#Controller is the BigMatchController class in main.py 
-        self.logobject = CHLog()
+        now = datetime.datetime.now()
+        self.init_time = str(now.year) + str(now.month).rjust(2,'0') + str(now.day).rjust(2,'0') + ' ' + str(now.hour).rjust(2,'0') + ':' + str(now.minute).rjust(2,'0')
+        self.logobject = CHLog(self.controller.enable_logging)
+        self.logobject.logit("\n\n____________________________________________________________________", True, True )
+        self.logobject.logit("%s In MatchReview_Model._init_: title=%s" % (self.init_time, title), True, True )
         if title is not None:
             self.title = title
         else:
@@ -88,66 +94,10 @@ class MatchReview_Model():
         return
 
     #*********************************************************************************************
-    def combine_result_files(self):
-        print("\n FILE SELECTED: %s aka %s" % (self.matchreview_file_selected_by_user, str(self.matchreview_file_selected_by_user)[-12:][:6].lower().strip() ) )
-        head, tail = os.path.split(self.matchreview_file_selected_by_user)
-        match_result_filename_trunc = self.get_result_filename_trunc(self.matchreview_file_selected_by_user)
-        self.combined_matchreview_file = os.path.join(head, match_result_filename_trunc + "pairs_99.dat").lower().strip()
-        if str(self.matchreview_file_selected_by_user)[-12:][:6].lower().strip() == "pairs_":
-            #Find all files in the same folder as that selected by the user, that also have the same filename (except for final suffix) as the user-selected file.  (Example: Myfile_Pairs_00.bat, Myfile_Pairs_01.bat, etc.)
-            self.build_list_of_all_pairs_files_for_batch()
-            if len(self.match_files_for_batch) == 0:
-                self.error_message = "Combining BigMatch result files failed."
-            else:
-                try:
-                    with open(self.combined_matchreview_file, 'w') as outfile:
-                        for filenm in self.match_files_for_batch:
-                            suffix = filenm[-6:-4]
-                            if "012345678".find(suffix[:1]) != -1:
-                                try:
-                                    suffix = str(int(suffix))   
-                                except ValueError:
-                                    pass
-                            nextfile = os.path.join(head, filenm)
-                            if nextfile.lower().strip() != self.combined_matchreview_file:      #DO NOT allow the newly created file to be included in this loop, or it will set up an endless loop!
-                                with open(nextfile) as infile:
-                                    for line in infile:
-                                        outfile.write("bp:" + suffix + " " + line)
-                                outfile.write("***************************************************** \n")
-                except IOError as e:
-                    print("I/O error({0}): {1}".format(e.errno, e.strerror))
-                    self.error_message = str(e.strerror)
-        if self.error_message is not None:
-            self.handle_error()
-            return
-        
-    def build_list_of_all_pairs_files_for_batch(self):
-        self.match_files_for_batch = []
-        head, tail = os.path.split(self.matchreview_file_selected_by_user)
-        dirpath = head
-        match_result_filename_trunc = self.get_result_filename_trunc(self.matchreview_file_selected_by_user)
-        print("In build_list_of_all_pairs_files_for_batch(), match_result_filename_trunc=%s" % (match_result_filename_trunc))
-        for (dirpath, dirnames, filenames) in walk(head):
-            for filenm in filenames:
-                filenm = str(filenm).lower().strip()
-                print("Next file in dir: %s .... %s" % (filenm, filenm[:-12]) )
-                if filenm[:-12] == match_result_filename_trunc and filenm[-4:] == ".dat":    #This is a batch-mate of the selected file
-                    if filenm[-6:] != "99.dat":                       #Don't include this COMBINED file, as it will be overwritten anyway
-                        self.match_files_for_batch.append(filenm)
-            break
-        print("\n In build_list_of_all_pairs_files_for_batch(), Batch Files Found:")
-        for f in self.match_files_for_batch:
-            print(f)
-
-    def get_result_filename_trunc(self, filename=None):
-        if filename is None:
-            filename = self.matchreview_file_selected_by_user
-        head, tail = os.path.split(filename)
-        self.match_result_filename_trunc = tail.lower().strip()[:-12]
-        return self.match_result_filename_trunc
-
-    #*********************************************************************************************
     def split_result_file(self, matchreview_file=None):
+        '''Parse the standard BigMatch result file, extracting key information such as the match weight, ID (sequence) fields, matched values, etc.
+        All of this information is stored in self.meta_values. But NOTE: the simple match values stored in self.meta_values proved to be insufficient for a robust user assessment.
+        So match values are stored separately in self.frame_and_its_labels, so that they can be displayed and re-displayed in color-coded segments. See below function populate_resultrow_frame()'''
         if matchreview_file is None:
             matchreview_file = self.matchreview_file_to_load_from
         if not matchreview_file:
@@ -226,7 +176,7 @@ class MatchReview_Model():
                 exactfile.close()
             matchfile.close()
         self.matchfile_rows = count
-        print("\n At end of split_result_file(), meta_values has %s rows, and the matchfile has %s rows." % (len(self.meta_values) , self.matchfile_rows) )  
+        self.logobject.logit("\n At end of split_result_file(), meta_values has %s rows, and the matchfile has %s rows." % (len(self.meta_values) , self.matchfile_rows), True, True )  
         self.sort_list()
 
     '''def init_grid_arrays(self):
@@ -234,18 +184,6 @@ class MatchReview_Model():
         for i in range(0, self.matchfile_rows):
             self.meta_rownums.append(str(i))        #Display row numbers in the Entry Grid
         self.meta_columns = ["Record file data values", "Memory file data values"]'''
-
-    def load_single_file(self):
-        self.viewing_one_or_all_files = "one"
-        self.display_views()
-
-    def load_combined_files(self):
-        self.viewing_one_or_all_files = "all"
-        self.combine_result_files()
-        #Now the COMBINED file displaces the USER-SELECTED file as self.matchreview_file_to_load_from
-        self.matchreview_file_to_load_from = self.combined_matchreview_file
-        #Load (or re-load) the grid so that the user can review this file row by row
-        self.display_views()
 
     def write_accepted_pairs(self):
         '''After the user has "accepted" the rows (checked boxes for all rows where Record file and Memory file matching-field-values appear to confirm that the two records represent the same entity),
@@ -268,9 +206,8 @@ class MatchReview_Model():
                 i += 1
             f.close()
         
-
     def sort_list(self):
-        #Sort the list by weight:
+        '''Sort the list by match-weight'''
         print("\n Sorting the values list")
         if str(self.sort_asc_or_desc).upper().strip() == "ASC":
             if str(self.sort_column).lower().strip() == "weight":
@@ -301,16 +238,6 @@ class MatchReview_Model():
         self.sort_list()
         if self.view_object is not None:
             self.view_object.repopulate_grid()
-
-    def check_key_exists(self, keyvalue, **kw):
-        found = False
-        #print("Checking for key '%s' in **Kwargs" % (keyvalue) ) 
-        for key, value in kw.items():
-            if str(key).lower() == str(keyvalue).lower():
-                found = True
-                break
-        #print("Checking for key '%s' in **Kwargs -- Found? %s" % (str(keyvalue), str(found) ) ) 
-        return found
 
     def display_openfile_dialogs(self, container, default_filepath=''):
         file_types = [('All files', '*'), ('Text files', '*.csv;*.txt', '*.dat')]
@@ -488,6 +415,82 @@ class MatchReview_Model():
         text = text.replace("  ", " ")
         return text
 
+    #*********************************************************************************************************
+    def load_single_file(self):
+        self.viewing_one_or_all_files = "one"
+        self.display_views()
+
+    def load_combined_files(self):
+        '''See note at combine_result_files() '''
+        self.viewing_one_or_all_files = "all"
+        self.combine_result_files()
+        #Now the COMBINED file displaces the USER-SELECTED file as self.matchreview_file_to_load_from
+        self.matchreview_file_to_load_from = self.combined_matchreview_file
+        #Load (or re-load) the grid so that the user can review this file row by row
+        self.display_views()
+
+    def combine_result_files(self):
+        '''Not currently active.  This function combines BigMatch result files so that the user can review all at once. It was deactivated at least temporarily due to concern that ideal cutoff thresholds differ from pass to pass, so no general rule about the cutoff can be arrived at.'''
+        print("\n FILE SELECTED: %s aka %s" % (self.matchreview_file_selected_by_user, str(self.matchreview_file_selected_by_user)[-12:][:6].lower().strip() ) )
+        head, tail = os.path.split(self.matchreview_file_selected_by_user)
+        match_result_filename_trunc = self.get_result_filename_trunc(self.matchreview_file_selected_by_user)
+        self.combined_matchreview_file = os.path.join(head, match_result_filename_trunc + "pairs_99.dat").lower().strip()
+        if str(self.matchreview_file_selected_by_user)[-12:][:6].lower().strip() == "pairs_":
+            #Find all files in the same folder as that selected by the user, that also have the same filename (except for final suffix) as the user-selected file.  (Example: Myfile_Pairs_00.bat, Myfile_Pairs_01.bat, etc.)
+            self.build_list_of_all_pairs_files_for_batch()
+            if len(self.match_files_for_batch) == 0:
+                self.error_message = "Combining BigMatch result files failed."
+            else:
+                try:
+                    with open(self.combined_matchreview_file, 'w') as outfile:
+                        for filenm in self.match_files_for_batch:
+                            suffix = filenm[-6:-4]
+                            if "012345678".find(suffix[:1]) != -1:
+                                try:
+                                    suffix = str(int(suffix))   
+                                except ValueError:
+                                    pass
+                            nextfile = os.path.join(head, filenm)
+                            if nextfile.lower().strip() != self.combined_matchreview_file:      #DO NOT allow the newly created file to be included in this loop, or it will set up an endless loop!
+                                with open(nextfile) as infile:
+                                    for line in infile:
+                                        outfile.write("bp:" + suffix + " " + line)
+                                outfile.write("***************************************************** \n")
+                except IOError as e:
+                    print("I/O error({0}): {1}".format(e.errno, e.strerror))
+                    self.error_message = str(e.strerror)
+        if self.error_message is not None:
+            self.handle_error()
+            return
+
+    def build_list_of_all_pairs_files_for_batch(self):
+        '''See note at combine_result_files() '''
+        self.match_files_for_batch = []
+        head, tail = os.path.split(self.matchreview_file_selected_by_user)
+        dirpath = head
+        match_result_filename_trunc = self.get_result_filename_trunc(self.matchreview_file_selected_by_user)
+        print("In build_list_of_all_pairs_files_for_batch(), match_result_filename_trunc=%s" % (match_result_filename_trunc))
+        for (dirpath, dirnames, filenames) in walk(head):
+            for filenm in filenames:
+                filenm = str(filenm).lower().strip()
+                print("Next file in dir: %s .... %s" % (filenm, filenm[:-12]) )
+                if filenm[:-12] == match_result_filename_trunc and filenm[-4:] == ".dat":    #This is a batch-mate of the selected file
+                    if filenm[-6:] != "99.dat":                       #Don't include this COMBINED file, as it will be overwritten anyway
+                        self.match_files_for_batch.append(filenm)
+            break
+        print("\n In build_list_of_all_pairs_files_for_batch(), Batch Files Found:")
+        for f in self.match_files_for_batch:
+            print(f)
+
+    def get_result_filename_trunc(self, filename=None):
+        '''See note at combine_result_files() '''
+        if filename is None:
+            filename = self.matchreview_file_selected_by_user
+        head, tail = os.path.split(filename)
+        self.match_result_filename_trunc = tail.lower().strip()[:-12]
+        return self.match_result_filename_trunc
+    #*********************************************************************************************
+        
     def update_controller_dirpaths(self, file_name_with_path):
         if file_name_with_path:
             head, tail = os.path.split(file_name_with_path)
@@ -662,8 +665,18 @@ class MatchReview_Model():
             print("%s) Row: %s, Col: %s, Name: %s, Type: %s" % ( i, control.row, control.col, control.ref_name, control.control_type ))
             i += 1
 
+    def check_key_exists(self, keyvalue, **kw):
+        found = False
+        #print("Checking for key '%s' in **Kwargs" % (keyvalue) ) 
+        for key, value in kw.items():
+            if str(key).lower() == str(keyvalue).lower():
+                found = True
+                break
+        #print("Checking for key '%s' in **Kwargs -- Found? %s" % (str(keyvalue), str(found) ) ) 
+        return found
 
 #******************************************************************************
+# NEW CLASS SECTION
 #******************************************************************************
 class MatchReview_View(Frame):
     debug = True
@@ -688,8 +701,8 @@ class MatchReview_View(Frame):
             self.container = container
         if model is None:
             model = BlockingPass_Model()				#Normally this VIEW object will be called by an already-instantiated MODEL object.  But this line is there to catch any direct instantiations of the VIEW.		
-        self.model = model 
-        self.pass_index = pass_index                              #Typically we display 6 or 7 blocking pass views on the screen at one time. The blockpassview_index is a counter (index) for these different views.
+        self.model = model                              #Instance of the MatchReview_Model class (see aboove) 
+        self.pass_index = pass_index                    #Typically we display 6 or 7 blocking pass views on the screen at one time. The blockpassview_index is a counter (index) for these different views.
         self.show_view = show_view
         #Display the frame:
         print("\n In matchreview_table_view._init_: self.show_view=" + str(self.show_view))
@@ -717,7 +730,7 @@ class MatchReview_View(Frame):
             if i < self.rows_to_display:
                 self.rowconfigure(0, pad=2)
         #Frame Title:
-        print("\n In matchreview_view.initUI: About to display main MatchReview frame title")
+        self.model.logobject.logit("\n In matchreview_view.initUI: About to display main MatchReview frame title", True, True)
         widgetspot = self.get_widgetstack_counter()
         self.label_object = Label(self, text=self.model.title)    #+ " #" + str(self.pass_index +1))
         self.label_object.grid(row=widgetspot, column=0, columnspan=7, sticky=EW)
@@ -732,6 +745,7 @@ class MatchReview_View(Frame):
         lbl_kw = {"width":20, "background":self.bgcolor, "borderwidth":1, "font":("Arial", 10, "bold") }
         lbl = self.create_label("Record file field", vert_position, 4, **lbl_kw)
         lbl = self.create_label("Memory file field", vert_position, 5, **lbl_kw)
+        #***********************************************************************
         #Display the first page of results:  
         self.display_review_page(0)
 		
@@ -743,7 +757,7 @@ class MatchReview_View(Frame):
             self.start_row = start_row
         if self.start_row is None:
             self.start_row = 0
-        print("\n In matchreview_view.display_review_page(), start_row=%s" % (self.start_row) )
+        self.model.logobject.logit("\n In matchreview_view.display_review_page(), start_row=%s" % (self.start_row), True, True )
         self.row_index = 0				
         curvalue = 0 
         data_column_name = ""
@@ -759,7 +773,7 @@ class MatchReview_View(Frame):
         for item in self.model.meta_values:
             if ix >= self.start_row and countrow <= self.rows_to_display:
                 self.meta_rowid = item[6]
-                print("Row %s is between %s and %s so it will be displayed. Meta_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.meta_rowid ) )
+                self.model.logobject.logit("\nRow %s is between %s and %s so it will be displayed. Meta_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.meta_rowid ), True, True )
                 vert_position = self.get_widgetstack_counter()
                 label_text = ""
                 #(1) Checkbox to indicate that this field should be accepted as a match:
@@ -813,9 +827,12 @@ class MatchReview_View(Frame):
                 '''
                 self.recfile_values_for_current_row = str(item[2])        #This item from meta_values is a string of Matchnig Field values for the Record file
                 self.memfile_values_for_current_row = str(item[3])        #This item from meta_values is a string of Matchnig Field values for the Memory file
-                kw_fresult = {"background":self.bgcolor, "borderwidth":1, "height":1, "padx":4, "pady":2}              #, "data_column_name":data_column_name, "text":data_column_name, "font":("Arial", 10, "normal") }
+                #kw_fresult = {"background":self.bgcolor, "borderwidth":1, "height":1, "padx":4, "pady":2}              #, "data_column_name":data_column_name, "text":data_column_name, "font":("Arial", 10, "normal") }
+                kw_fresult = {"background":"yellow", "height":1, "borderwidth":1, "padx":4, "pady":2}              # " "data_column_name":data_column_name, "text":data_column_name, "font":("Arial", 10, "normal") }
+                #******************************************************************************
                 #Display the Record file and Memory file matching field values, side by side - Record values in one frame object, Memory values in a second frame object.
                 frame = self.create_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_fresult)             #RECORD FILE matching fields are contained in item[2]
+                kw_fresult["background"] = "white"
                 gridcolumn +=1
                 frame = self.create_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_fresult)             #MEMORY FILE matching fields are contained in item[3]
                 countrow += 1
@@ -978,87 +995,92 @@ class MatchReview_View(Frame):
         The frame objects are created ONCE, and then later the StringVar values are updated as the user scrolls or sorts the display rows. (See function populate_resultrow_frame()).
         Pass both the RECORD and MEMORY matching fields values to this function, so that we can compare each segment of those values and highlight differences
         Note that this function creates and displays a single frame object, containing a string of matching-field values for EITHER the Record File or the Memory File. 
-        This function will be called twice (Record File, then Memory File) for each row that is being displayed in the grid -- so once for every row in the specified number of rows per page.'''
-        print("\n In create_resultrow_frame(), mem_or_rec: %s, matchvals_rec: %s, matchvals_mem: %s, gridcolumn: %s" % (mem_or_rec, matchvals_rec, matchvals_mem, gridcolumn) )
+        This function will be called twice (Record File, then Memory File) for each row that is being displayed in the grid -- so once for every row in the specified number of rows per page.
+        List labels_and_stringvars[] stores label OBJECTS and the StringVar OBJECTS that store their values. This is so that the grid can be refreshed as often as needed. 
+        We can't keep creating an infinite number of label objects, so we create them one time and update their StringVar values as often as needed.'''
+        self.model.logobject.logit("\n In create_resultrow_frame(), mem_or_rec: %s, matchvals_rec: %s, matchvals_mem: %s, gridcolumn: %s" % (mem_or_rec, matchvals_rec, matchvals_mem, gridcolumn), True, True )
         mem_or_rec = str(mem_or_rec).lower().strip()
         frame = Frame(self)
         frame.grid(row=gridrow, column=gridcolumn, sticky=EW)
         if not self.model.check_key_exists("background", **kw):
             kw["background"] = self.bgcolor
-        if not self.model.check_key_exists("width", **kw):
-            kw["width"] = 80
+        #if not self.model.check_key_exists("width", **kw):
+        #    kw["width"] = 80
         frame.configure(**kw)
+        frame.configure(width=80)
         labels_and_stringvars = []        #List of labels that will be displayed within this frame, along with the StringVar variables to hold the values that are displayed in the labels.
         var0 = StringVar(self)
         var0.set("")
         lbl0 = Label(frame, textvariable=var0)
-        var_lbl0 = [lbl0, var0]
-        labels_and_stringvars.append(var_lbl0)
+        lblpair_0 = [lbl0, var0]
+        labels_and_stringvars.append(lblpair_0)
         var1 = StringVar(self)
         var1.set("")
         lbl1 = Label(frame, textvariable=var1)
-        var_lbl1 = [lbl1, var1]
-        labels_and_stringvars.append(var_lbl1)
+        lblpair_1 = [lbl1, var1]
+        labels_and_stringvars.append(lblpair_1)
         var2 = StringVar(self)
         var2.set("")
         lbl2 = Label(frame, textvariable=var2)
-        var_lbl2 = [lbl2, var2]
-        labels_and_stringvars.append(var_lbl2)
+        lblpair_2 = [lbl2, var2]
+        labels_and_stringvars.append(lblpair_2)
         var3 = StringVar(self)
         var3.set("")
         lbl3 = Label(frame, textvariable=var3)
-        var_lbl3 = [lbl3, var3]
-        labels_and_stringvars.append(var_lbl3)
+        lblpair_3 = [lbl3, var3]
+        labels_and_stringvars.append(lblpair_3)
         var4 = StringVar(self)
         var4.set("")
         lbl4 = Label(frame, textvariable=var4)
-        var_lbl4 = [lbl4, var4]
-        labels_and_stringvars.append(var_lbl4)
+        lblpair_4 = [lbl4, var4]
+        labels_and_stringvars.append(lblpair_4)
         var5 = StringVar(self)
         var5.set("")
         lbl5 = Label(frame, textvariable=var5)
-        var_lbl5 = [lbl5, var5]
-        labels_and_stringvars.append(var_lbl5)
+        lblpair_5 = [lbl5, var5]
+        labels_and_stringvars.append(lblpair_5)
         var6 = StringVar(self)
         var6.set("")
         lbl6 = Label(frame, textvariable=var6)
-        var_lbl6 = [lbl6, var6]
-        labels_and_stringvars.append(var_lbl6)
+        lblpair_6 = [lbl6, var6]
+        labels_and_stringvars.append(lblpair_6)
         var7 = StringVar(self)
         var7.set("")
         lbl7 = Label(frame, textvariable=var7)
-        var_lbl7 = [lbl7, var7]
-        labels_and_stringvars.append(var_lbl7)
+        lblpair_7 = [lbl7, var7]
+        labels_and_stringvars.append(lblpair_7)
         var8 = StringVar(self)
         var8.set("")
         lbl8 = Label(frame, textvariable=var8)
-        var_lbl8 = [lbl8, var8]
-        labels_and_stringvars.append(var_lbl8)
+        lblpair_8 = [lbl8, var8]
+        labels_and_stringvars.append(lblpair_8)
         var9 = StringVar(self)
         var9.set("")
         lbl9 = Label(frame, textvariable=var9)
-        var_lbl9 = [lbl9, var9]
-        labels_and_stringvars.append(var_lbl9)
+        lblpair_9 = [lbl9, var9]
+        labels_and_stringvars.append(lblpair_9)
         #Add a row to the result_comparison_frames_in_grid list. Each row consists of a single frame object and the StringVars and Label objects associated with that frame object.
-        frame_and_its_labels = [frame, mem_or_rec, gridrow, gridcolumn, labels_and_stringvars]    #var_lbl0, var_lbl1, var_lbl2, var_lbl3, var_lbl4, var_lbl5, var_lbl6, var_lbl7, var_lbl8, var_lbl9]
-        frame_index = len(self.model.result_comparison_frames_in_grid)                            #The frame will be added to this list soon
+        frame_and_its_labels = [frame, mem_or_rec, gridrow, gridcolumn, labels_and_stringvars]    #lblpair_0, lblpair_1, lblpair_2, lblpair_3, lblpair_4, lblpair_5, lblpair_6, lblpair_7, lblpair_8, lblpair_9]
+        framerow_index = len(self.model.result_comparison_frames_in_grid)                            #The frame will be added to this list soon
         #Configure each Label that was just added to the list.
         color = "black"
         #Item[0] in this list-row is the frame object itself, item[1] is mem_or_rec, item[2] is the grid row index, item[3] is the grid column index. 
+        #For each label, call GRID() and CONFIG() to format the Label object within this Frame object		
         lbl_count = 0
-        for lbl_pair in frame_and_its_labels[4]:    #Item[4] in this list is a list of 2-member lists, each consisting of a Tkinter Label0 and its designated StringVar textvariable.
-            #Every row in this list contains a frame object, followed by references (starting in position 4) to its child labels and their StringVar value variables.
-            print("Type of ResltComprFrm row %s item %s: %s. Type of item[0]: %s. Type of item[1]: %s. Stringvar value: '%s'" % (frame_index, lbl_count, type(lbl_pair), type(lbl_pair[0]), type(lbl_pair[1]), str(lbl_pair[1].get())  )  )
+        for lbl_pair in frame_and_its_labels[4]:    #Item[4] in this list is a list of 10 2-member lists, each consisting of a Tkinter Label0 and its designated StringVar textvariable.
             lbl = lbl_pair[0]
-            lbl.grid(row=0, column=0, sticky=W)
-            lbl.config(**kw)
+            #self.model.logobject.logit("Type of ResltComprFrm row %s item %s: %s. Type of item[0]: %s. Type of item[1]: %s. Stringvar value: '%s'" % (framerow_index, lbl_count, type(lbl_pair), type(lbl_pair[0]), type(lbl_pair[1]), str(lbl_pair[1].get())  ), True, True  )
+            lbl.grid(row=0, column=lbl_count, sticky=W)
+            lbl.config(**kw)    #**kw is meant to configure the FRAME, not the individual labels within that frame. Make sure that the frmae attributes like "width" are removed before we apply them to the Labels.
             lbl.config(anchor=W, font=("Arial", 10, "normal"))
-            lbl.config(foreground=color)
+            lbl.config(foreground=color)                        #Font color will be set according to whether the current segments match (rec matches mem)
             lbl_count += 1
+        
         #Append this frame object and its labels into a List that can be accessed later, so that the values can be refreshed when the user scrolls or sorts.
         self.model.result_comparison_frames_in_grid.append(frame_and_its_labels)     #A list of grid frames, each accompanied by its collection of text segments embedded in TKinter Label objects.
 		#Display this frame object in the grid:
         self.populate_resultrow_frame(matchvals_rec, matchvals_mem, mem_or_rec, gridrow, gridcolumn, **kw)          #Display the comparison values
+        self.container.refresh_canvas()
 
     def populate_resultrow_frame(self, matchvals_rec, matchvals_mem, mem_or_rec, gridrow, gridcolumn, **kw):
         '''Display the comparison text (matching-field values) in the Record File or Memory File frame. First, split the values-string into segments separated by blanks. 
@@ -1067,9 +1089,10 @@ class MatchReview_View(Frame):
         First, we need to locate the correct set of Label controls, which are stored in a list. The list is searchable by GridRow and GridColumn, which is how we locate the correct Label Widget set.
         Of course, we could avoid this search process when the frame is initially created, because the creating object already has a reference to the array that needs to be displayed (StringVars need to be updated).
         But for simplicity, this function needs to be generic enough to handle cases where the information is not known, aside from row and column indices in the master list of frames with their Label widgets.'''
+        frmx = 0
         for frame_and_its_labels in self.model.result_comparison_frames_in_grid:
             if frame_and_its_labels[2] == gridrow and frame_and_its_labels[3] == gridcolumn:      #The row and column indices match - so we have found the correct Frame and its Labels.
-                print("\n In populate_resultrow_frame(), mem_or_rec: %s, matchvals_rec: %s, matchvals_mem: %s, gridcolumn: %s" % (mem_or_rec, matchvals_rec, matchvals_mem, gridcolumn) )
+                #self.model.logobject.logit("\n In populate_resultrow_frame(), framerow (%s) mem_or_rec: %s, matchvals_rec: %s, matchvals_mem: %s, gridcolumn: %s" % (frmx, mem_or_rec, matchvals_rec, matchvals_mem, gridcolumn), True, True )
                 matchsegs_rec = matchvals_rec.split(" ")
                 matchsegs_mem = matchvals_mem.split(" ")
                 max_num_segments = len(matchsegs_rec)
@@ -1078,55 +1101,49 @@ class MatchReview_View(Frame):
                     min_num_segments = len(matchsegs_mem)
                 elif len(matchsegs_mem) > len(matchsegs_rec):
                     max_num_segments = len(matchsegs_mem)
-                for item in frame_and_its_labels[4]:            #Item[0] is the Frame widget, item[1] is "mem_or_rec", item[2] is gridrow, item[3] is the gridcolumn, item[4] is the list of StringVars and associated Label widgets within the Frame.
+                #Item[0] is the Frame widget, item[1] is "mem_or_rec", item[2] is gridrow, item[3] is the gridcolumn, item[4] is the list of StringVars and associated Label widgets within the Frame.
+                #Item[4] is "labels_and_stringvars", a list of 10 lists, each having 2 elements: [0] is a Tkinter Label object and [1] is its associated StringVar to hold the label's text value.
+                lblx = 0
+                for lbl_pair in frame_and_its_labels[4]:     #should be 10 label pairs per frame (each label pair is a Label object and its Stringvar object)
                     #Debug - view all of this frame's child labels (which are stored in the list that appears in position 4 [5th item] in each row of result_comparison_frames_in_grid.
-                    print("Type of frame-labels: %s. Type of frame-labels[0]: %s. Type of frame-labels[1]: %s. Type of frame-labels[2]: %s. Type of frame-labels[3]: %s. Type of frame-labels[4]: %s. Type of frame-labels[4][0]: %s. Type of frame-labels[4][1]: %s." % (type(frame_and_its_labels), type(frame_and_its_labels[0]), type(frame_and_its_labels[1]), type(frame_and_its_labels[2]), type(frame_and_its_labels[3]), type(frame_and_its_labels[4]), type(frame_and_its_labels[4][0]), type(frame_and_its_labels[4][1])  ) )
-                    zz = 0
-                    for whatever in frame_and_its_labels[4][0]:
-                        if zz == 1:
-                            print("Frame_and_its_labels[4][1][%s]: %s, value '%s'" % (zz, frame_and_its_labels[4][1][zz], frame_and_its_labels[4][0][zz].get() ) ) 
-                        else:
-                            print("Frame_and_its_labels[4][0][%s]: %s" % (zz, frame_and_its_labels[4][0][zz] ) ) 
-                        zz += 1
-                    zz = 0
-                    for whatever in frame_and_its_labels[4][1]:
-                        if zz == 1:
-                            print("Frame_and_its_labels[4][1][%s]: %s, value '%s'" % (zz, frame_and_its_labels[4][1][zz], frame_and_its_labels[4][0][zz].get() ) ) 
-                        else:
-                            print("Frame_and_its_labels[4][0][%s]: %s" % (zz, frame_and_its_labels[4][0][zz] ) ) 
-                        zz += 1
-                    #Set the StringVar value to nothing -- that is, erase existing values that were previously displayed in the label widget.
-                    frame_and_its_labels[4][1][1].set("")     #StringVar is frame_and_its_labels[4][1] -- but it is technically a list, and only segment[1] is an object that can execute the Get()
-                #Traverse the Labels and set their StrngVar values to the segments found in the Record File or Memory File matching-field-values.
+                    #self.model.logobject.logit("Framerow %s, segment %s). Type of frame-labels: %s. Type of frame-labels[0]: %s. Type of frame-labels[1]: %s. Type of frame-labels[2]: %s. Type of frame-labels[3]: %s. Type of frame-labels[4]: %s. Type of frame-labels[4][0]: %s. Type of frame-labels[4][1]: %s." % (frmx, lblx, type(frame_and_its_labels), type(frame_and_its_labels[0]), type(frame_and_its_labels[1]), type(frame_and_its_labels[2]), type(frame_and_its_labels[3]), type(frame_and_its_labels[4]), type(frame_and_its_labels[4][0]), type(frame_and_its_labels[4][1])  ), True, True )
+                    #IMPORTANT! Set the StringVar value to nothing -- that is, erase existing values that were previously displayed in the label widget.
+                    frame_and_its_labels[4][lblx][1].set("")     #StringVar is frame_and_its_labels[4][x][1] -- but it is technically a list, and only segment[1] is an object that can execute the Get()
+                    lblx +=1
+                #Traverse the Labels and set their StringVar values to the segments found in the Record File or Memory File matching-field-values.
                 color = "black"
                 recseg = memseg = text = ""
                 ix = 0
-                for ix in range(0, max_num_segments):
+                #max_num_segments is the largest number of segments found for this row (the larger of the two: record or memory file matchvalues)
+                for ix in range(0, max_num_segments):               #match_segs_rec is a list of text segments in the RECORD file matchvalues
+                    text = memseg = recseg = ""
                     if len(matchsegs_rec) > ix:
                         recseg = str(matchsegs_rec[ix])
-                    if len(matchsegs_mem) > ix:
+                    if len(matchsegs_mem) > ix:                     #match_segs_mem is a list of text segments in the MEMORY file matchvalues
                         memseg = str(matchsegs_mem[ix])
-                    if len(matchsegs_rec) > ix and len(matchsegs_mem) > ix:    #Both RECORD and MEMORY matching field values have at least this many segments -- compare them to see whether they match.
+                    if len(matchsegs_rec) > ix and len(matchsegs_mem) > ix:       #Both RECORD and MEMORY matching field values have at least this many segments -- compare them to see whether they match.
                         if recseg.lower().strip() == memseg.lower().strip():     
-                            color = "black"                                      #This segment is identical between the RECORD FILE and the MEMORY FILE
+                            color = "black"                                       #This segment is identical between the RECORD FILE and the MEMORY FILE
                         else:                                                    
-                            color = "red"                                        #This segment is NOT identical between the RECORD FILE and the MEMORY FILE
+                            color = "red"                                         #This segment is NOT identical between the RECORD FILE and the MEMORY FILE
                     else:                                                        
                         color = "gray"                                            #RECORD and MEMORY matching field values might have a different number of segments
                     if mem_or_rec == "mem":
                         text = memseg
                     elif mem_or_rec == "rec":
                         text = recseg
-                    print("Seg: %s" % (text) )
-                    #GMS TEMP REM - self.model.result_comparison_frames_in_grid[frame_index][ix][0].set(text)   #Update the StringVar values stored in this array, from which labels take their values.
-                    #kw["width"] = len(text) + 1
+                    #if text: 
+                    #    self.model.logobject.logit("Seg text for framerow %s, segment %s: %s" % (frmx, ix, text), True, True )
                     #***************************************************************************************************************
-                    #SET THE NEXT LABEL'S VALUE TO THE NEXT SEGMENT FROM THE MATCHING-FIELD-VALUES-STRING WE ARE DISPLAYING:
-                    frame_and_its_labels[4][1][1].set(text)
+                    #SET THIS SEGMENT'S FONT TO THE INDICATED COLOR:
+                    frame_and_its_labels[4][ix][0].config(foreground=color)
+                    #SET THE LABEL'S VALUE TO THIS SEGMENT FROM THE MATCHING-FIELD-VALUES-STRING WE ARE DISPLAYING:
+                    frame_and_its_labels[4][ix][1].set(text)
                     #***************************************************************************************************************
                     ix +=1
                 break          #We found the specified row, so exit the loop
-
+            frmx +=1
+			
     def repopulate_grid(self):
         '''repopulate_grid() is called when the frame-grid is re-drawn with new values.  This happens all the time, because the user displays a small number of rows at a time.
 		It would be convenient to simply re-call the function that created the frames in the first place, but that would create hundreds or thousands of frame objects as the user scrolls and sorts iteratively.'''
@@ -1137,20 +1154,20 @@ class MatchReview_View(Frame):
         #self.model.debug_display_arrays()
 		
         #NOTE: each item in self.meta_values is itself a list of cell values - so each item represents a row of cells.
-        print("\n *********************************************************************")
-        print("RE-POPULATING self.model.controls LIST FROM self.model.meta_values")
-        print("StartRow: %s EndRow: %s" % (self.start_row, int(self.start_row) + int(self.rows_to_display) ) )
+        self.model.logobject.logit("\n *********************************************************************", True, True)
+        self.model.logobject.logit("RE-POPULATING self.model.controls LIST FROM self.model.meta_values", True, True)
+        self.model.logobject.logit("StartRow: %s EndRow: %s" % (self.start_row, int(self.start_row) + int(self.rows_to_display) ), True, True )
         ix = 0                              #index of the current row
         countrow = 0                        #count the number of rows displayed
         holdweight = ""
         weight_color = "dark slate blue"
         for item in self.model.meta_values:
-            #print("In Repopulate, row %s" % (ix) )
+            #self.model.logobject.logit("In Repopulate, row %s" % (ix), True, True )
             if ix >= self.start_row and countrow <= self.rows_to_display:
                 self.recfile_values_for_current_row = ""
                 self.memfile_values_for_current_row = ""
                 self.meta_rowid = item[6]
-                #print("Repopulating: Row %s is between %s and %s so it will be displayed. Meta_rowid=" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display, self.meta_rowid) ) )
+                #self.model.logobject.logit("Repopulating: Row %s is between %s and %s so it will be displayed. Meta_rowid=%s" % (ix, self.start_row, ( int(self.start_row) + int(self.rows_to_display) ), self.meta_rowid ), True, True )
                 #Checkbox:
                 col = 0
                 newvalue = 0                           #Un-check the boxes when we re-draw the page
@@ -1199,23 +1216,21 @@ class MatchReview_View(Frame):
                 gridcolumn = 5
                 ##DO NOT RE-CREATE THE FRAME OBJECTS EVERY TIME THE USER SCROLLS OR SORTS! 
                 ##frame = self.create_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_fresult)             #MEMORY FILE matching fields are contained in item[3]
-				
                 #Display the Record file and Memory file matching field values, side by side - Record values in one frame object, Memory values in a second frame object.
                 kw_fresult = {"background":self.bgcolor, "borderwidth":1, "height":1, "padx":4, "pady":2}              #, "data_column_name":data_column_name, "text":data_column_name, "font":("Arial", 10, "normal") }
+                #******************************************************************************************************************
                 #Re-display the Matching Field Values frame objects in the grid:
                 gridcolumn = 4				
                 self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_fresult)          #Display the comparison values
                 gridcolumn = 5
                 self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_fresult)          #Display the comparison values
-				
+                #******************************************************************************************************************
                 countrow += 1
             ix += 1
         #self.debug_display_arrays()
         self.container.refresh_canvas()
 
-
-    def get_color_for_match_segment(self, matchvals1, matchvals2):
-        ''' docstring '''
+    '''def get_color_for_match_segment(self, matchvals1, matchvals2):
         color = ""
         ix = 1
         for seg in matchsegs1:
@@ -1225,7 +1240,7 @@ class MatchReview_View(Frame):
                 else:                            #This segment is identical between the RECORD FILE and the MEMORY FILE
                     color = "red"
             ix +=1
-        return color
+        return color'''
 
         
     def capture_menu_click(self, optmenu_name, var):

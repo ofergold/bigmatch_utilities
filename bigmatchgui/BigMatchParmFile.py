@@ -25,6 +25,9 @@ But for now there are many arrays with redundant information scattered around th
 
 #******************************************************************************
 class BigmatchParmfile():
+    debug = False
+    error_message = ""
+    logobject = None                        #Instantiation of CHLog class - does not yet support having this object passed in __init__, so use set_logobject() or set directly (example: myparmobj.logobject=self.logobject)
     file_path = None
     file_name = None
     filename_with_path = None
@@ -229,7 +232,6 @@ class BigmatchParmfile():
         else:
             self.parm_counter += 1
         return self.parm_counter
-        
 
     def display_blocking_passes_and_rows(self):
         for blkpass in self.blocking_passes:
@@ -269,9 +271,9 @@ class BigmatchParmfile():
         #print("\n SELF.FILE_ROW_OBJECTS (count is %s)" % (len(self.file_row_objects)) ) 
         #The following works, but has only simple values for parameters (does not store parameter name)
         for row in self.file_row_objects:
-            print("\n **Rowindex: %s, BlockingPass: %s, Blkpass_row_index: %s, RowType: %s, RowText: %s" % (row.row_index, row.blocking_pass, row.blkpass_row_index, row.row_type, row.rowtext) )
-            for parm in row.parm_values:
-                print(parm)
+            #print("\n **Rowindex: %s, BlockingPass: %s, Blkpass_row_index: %s, RowType: %s, RowText: %s" % (row.row_index, row.blocking_pass, row.blkpass_row_index, row.row_type, row.rowtext) )
+            #for parm in row.parm_values:
+            #    print(parm)
             #print("CHILD PARMS--")
             #for parmobj in row.parm_objects:
             #    print("...row-index: %s, row_type: %s, parm_type: %s, parm_value: %s" % (parmobj.row_index, parmobj.row_type, parmobj.parm_type, parmobj.parm_value) )
@@ -285,8 +287,11 @@ class BigmatchParmfile():
             #for attrib in row.parm_attribs:
             #    print(":::parm_type: %s, parm_value: %s" % ( attrib["parm_type"], attrib["parm_value"] ) )    #"row_index: %s, row_type: %s,   attrib["row_index"], attrib["row_type"], 
         #THIS IS THE ONLY OPTION THAT WORKS FOR STORING DETAILED PARAMETER-LEVEL INFORMATION.  IT IS STORED AS A LIST IN THE TOP-LEVEL OBJECT CALLED "PARMS".
-        for parm in self.parms:
-            print("\n^^PARM: blkpass: %s, row_index: %s, row_type: %s, parms in row: %s, parm_index: %s, parm_type: %s, parm_value: %s, first_parm_in_row: %s" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["num_parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"], parm["first_parm_in_row"] ) )
+        #for parm in self.parms:
+        #    print("\n^^PARM: blkpass: %s, row_index: %s, row_type: %s, parms in row: %s, parm_index: %s, parm_type: %s, parm_value: %s, first_parm_in_row: %s" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["num_parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"], parm["first_parm_in_row"] ) )
+
+    def set_logobject(self, logobject=None):
+        self.logobject = logobject
 
 #End of class
 

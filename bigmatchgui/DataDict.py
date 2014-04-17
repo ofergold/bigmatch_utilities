@@ -47,14 +47,14 @@ class DataDict_Model():
 	
     def __init__(self, parent_window, controller, datadict_file_to_load_from=None, show_view=None, title='Data dictionary', **kw):      #, bgcolor=gl_frame_color, frame_width=gl_frame_width, frame_height=gl_frame_height
         #Frame.__init__(self, parent_window)
-        self.parent_window = parent_window  #parent_wiondow is the TKinter object itself (often known as "root"
+        self.parent_window = parent_window  #parent_window is the TKinter object itself (often known as "root"
         self.controller = controller		#Controller is the BigMatchController class in main.py 
+        print("\nIn DataDict._init_, datadict_file_to_load_from = '" + str(self.datadict_file_to_load_from) + "' -- and show_view=" + str(self.show_view))
+        self.logobject = CHLog(self.controller.enable_logging)
+        self.logobject.logit("\nIn DataDict._init_: datadict_file_to_load_from = '" + str(self.datadict_file_to_load_from) + "' -- and show_view=" + str(self.show_view), True, True )
         self.title = title
         self.show_view = show_view
         self.datadict_file_to_load_from = datadict_file_to_load_from
-        #self.logobject = CHLog()
-        #self.logobject.logit("\n" + "In DataDict._init_, datadict_file_to_load_from = '" + str(self.datadict_file_to_load_from) + "' -- and show_view=" + str(self.show_view), True, True )
-        print("\n" + "In DataDict._init_, datadict_file_to_load_from = '" + str(self.datadict_file_to_load_from) + "' -- and show_view=" + str(self.show_view))
         if self.check_key_exists("bgcolor", **kw):
             self.bgcolor = kw["bgcolor"]
         if not self.bgcolor:
@@ -156,16 +156,6 @@ class DataDict_Model():
         self.meta_columns = ['column_name', 'start_pos', 'width', 'unique_id_yn', 'matchfield_yn', 'bigmatch_type', 'data_format', 'comments']
         return self.meta_columns
 
-    def display_openfile_dialogs(self, container, default_filepath=''):
-        file_types = [('All files', '*'), ('Text files', '*.csv;*.txt')]
-        kw_fpath = {"bgcolor":self.bgcolor, "frame_width":"", "frame_height":"", "file_category":"datadict"}
-        open_or_save_as = "open"
-        self.filepathobj_load_from = FilePath_Model(self.parent_window, self, self.controller, "Data dictionary file to load:", open_or_save_as, "DataDictToLoad", file_types, **kw_fpath)
-        self.filepathobj_load_from.display_view(container)	        #Display the dialog for user to select a data dict file
-        open_or_save_as = "save_as"
-        self.filepathobj_save_to = FilePath_Model(self.parent_window, self, self.controller, "Save data dictionary to file:", open_or_save_as, "DataDictToSaveAs", file_types, **kw_fpath)
-        self.filepathobj_save_to.display_view(container)	        #Display the dialog for user to Ave As... a new data dict file
-		
     def instantiate_view_object(self, container):
         self.view_object = DataDict_View(container, self) 
         return self.view_object	
@@ -210,6 +200,16 @@ class DataDict_Model():
         self.btnSaveToDictFile.grid(row=0, column=1, sticky=W)
         self.btnSaveToDictFile.config(state=DISABLED)       #Do not enable this button unless the user has selected a Data Dictionary file to save as
 
+    def display_openfile_dialogs(self, container, default_filepath=''):
+        file_types = [('All files', '*'), ('Text files', '*.csv;*.txt')]
+        kw_fpath = {"bgcolor":self.bgcolor, "frame_width":"", "frame_height":"", "file_category":"datadict"}
+        open_or_save_as = "open"
+        self.filepathobj_load_from = FilePath_Model(self.parent_window, self, self.controller, "Data dictionary file to load:", open_or_save_as, "DataDictToLoad", file_types, **kw_fpath)
+        self.filepathobj_load_from.display_view(container)	        #Display the dialog for user to select a data dict file
+        open_or_save_as = "save_as"
+        self.filepathobj_save_to = FilePath_Model(self.parent_window, self, self.controller, "Save data dictionary to file:", open_or_save_as, "DataDictToSaveAs", file_types, **kw_fpath)
+        self.filepathobj_save_to.display_view(container)	        #Display the dialog for user to Ave As... a new data dict file
+		
     def update_filepath(self, file_name_with_path='', callback_string='', alias=''):
         '''IMPORTANT: ALL FilePath objects created by this class will expect Function "update_file_path" to exist! FilePath objects alert their masters when a filepath is selected in an open-file dialog.'''
         #self.logobject.logit("Master DataDict_Model object has gotten the alert: filename is %s and callback_string is '%s'" % (file_name_with_path, callback_string), True, True )
@@ -230,6 +230,7 @@ class DataDict_Model():
             else:
                 self.btnSaveToDictFile.config(state=DISABLED)
         self.update_master_paths(file_name_with_path)
+        self.update_initial_dir_for_file_open_dialogs()
  
     def update_master_paths(self, file_name_with_path):
         if file_name_with_path:
@@ -242,6 +243,11 @@ class DataDict_Model():
                 self.controller.rec_datadict_last_opened = file_name_with_path    #The controller tracks last file opened of this type, so that when the user is again prompted to open the same type of file, we can default this value in.
         print("\n Controller-saved paths-- LastDir: %s, LastDataDictDir: %s, LastRecDatadict: %s, LastMemDatadict: %s" % (self.controller.dir_last_opened, self.controller.datadict_dir_last_opened, self.controller.rec_datadict_last_opened, self.controller.mem_datadict_last_opened) )
 		
+    def update_initial_dir_for_file_open_dialogs(self):
+        '''In addition to tracking "last file opened" at the main controller level, we also want to notify every FilePath object when the user has opened a new file, so that they can adjust thir Initial DIr properties to the location just opened.'''
+        self.filepathobj_load_from.calc_initial_dir_for_file_open(self.datadict_file_to_load_from, "datadict", "mem")
+        self.filepathobj_save_to.calc_initial_dir_for_file_open(self.datadict_file_to_save_to, "datadict", "rec")
+        
     def check_key_exists(self, keyvalue, **kw):
         found = False
         #print("Checking for key '%s' in **Kwargs" % (keyvalue) ) 
