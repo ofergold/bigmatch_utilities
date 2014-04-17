@@ -5,7 +5,7 @@
 from tkinter import *
 import tkinter.filedialog 
 from tkinter.filedialog import askopenfilename
-from tkinter.messagebox import showerror
+from tkinter.messagebox import *     #showerror
 import os
 import csv
 import datetime, time, sched
@@ -107,8 +107,10 @@ class BlockingPass_Model():
         #self.datadict_recfile = os.path.join("c:\\", "greg", "code", "bigmatch_utilities", "BigMatchGUI", "recfile.dict.csv")
         #self.datadict_memfile = os.path.join("c:\\", "greg", "code", "bigmatch_utilities", "BigMatchGUI", "memfile.dict.csv")
         if self.error_message is not None:
-            print("\n CRUCIAL METADATA NOT LOCATED.")		
-            sys.exit(1)
+            #self.error_message = "Crucial metadata not located"
+            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
+            return
 
     def load_compare_methods(self):
         self.compare_methods.append("")
@@ -144,7 +146,11 @@ class BlockingPass_Model():
             self.memfile_datadict_rowcount = 0
         i = 0
         for line in content:
-            print(line)                       #Debug-display this row from the data dictionary
+            self.logobject.logit("Type of Line: %s" % (str(type(line))), True, True )           #Debug--display this row from the data dictionary
+            self.logobject.logit(line, True, True)                       #Debug--display this row from the data dictionary
+            line = line.replace("\n", "")     #Remove linefeed characters
+            if not line:                      #Blank row in the file
+                continue
             if(i==0):                         #Header row in the CSV file
                 if mem_or_rec == "rec":
                     self.meta_columns_recfile = line.split(",")
@@ -279,8 +285,9 @@ class BlockingPass_Model():
                     else:
                         self.error_message = "fieldname_col_in_recfile_dict or a related property was not successfully populated."
                 if self.error_message is not None:
-                    print("\n Error: %s \n" % (self.error_message))
-
+                    self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+                    self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
+                    return False
         return success
 
     def locate_sequence_column(self, mem_or_rec):
@@ -306,12 +313,18 @@ class BlockingPass_Model():
         elif uniqid_column is None:
             self.error_message = "uniqid_column is None (locate_sequence_column()"
         else:
-            print("\n In locate_sequence_column(), mem_or_rec=%s ... datadict_file=%s, UniqId column in DataDict is %s, Fieldname column in datadict is %s" % (mem_or_rec, datadict_file, str(uniqid_column), str(fieldname_column) ) )
+            self.logobject.logit("\n In locate_sequence_column(), mem_or_rec=%s ... datadict_file=%s, UniqId column in DataDict is %s, Fieldname column in datadict is %s" % (mem_or_rec, datadict_file, str(uniqid_column), str(fieldname_column) ), True, True )
             #Traverse rows and columns of the Data Dictionary until we locate the requested row (which represents a Data Column in the Data File)
             with open(datadict_file, 'rt') as csvfile:
                 csvreader = csv.reader(csvfile, delimiter=',') 
                 row_index = 0
                 for row in csvreader:
+                    self.logobject.logit("Row length: %s" % (len(row) ), True, True)
+                    if len(row) == 1:             
+                        if str(row[0]) == "\n":            #blank row has just newline feed 
+                            row[0] = row[0].replace("\n", "")
+                    if not row or len(row) == 0:            
+                        continue
                     print("Value in column %s is: %s" % (uniqid_column, str(row[uniqid_column]).lower()) )
                     if str(row[uniqid_column]).lower().strip() == 'y' or str(row[uniqid_column]).lower().strip() == 't' or str(row[uniqid_column]).strip() == '1':       #For each row in the Data Dictionary, check the column that has been previously identified as the uniqidM column in the Data Dictionary, where user types "Y" to indicate that this field is the data file's SEQUENCE COLUMN.
                         sequence_column_name = str(row[fieldname_column])         #fieldname_column was previously identified as the Data Dictionary column that stores "Column_name" (normally column 0, the first column in the Data Dictionary CSV file)
@@ -332,8 +345,9 @@ class BlockingPass_Model():
         if sequence_column_name is None:
             self.error_message = "No unique ID field was flagged in data dictionary file '" + str(datadict_file) + "'"
         if self.error_message is not None:
-            print("\n \n Error: %s \n" % (self.error_message))
-
+            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
+            return
         return col_attribs
 
     #************************************************************************************************
@@ -491,7 +505,8 @@ class BlockingPass_Model():
                 self.controlrow_temp["memfile_width"] = memfile_attribs["width"]
             else:
                 self.error_message = "Failed to locate starting position for control with refname '%s', rowtype '%s' and value '%s'" % (refname, rowtype, memfile_column) 
-                print("\n\n ERROR: %s" % (self.error_message) )
+                self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+                self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
                 return
         elif refname[:15].lower() == "optmatch_compar":     # and rowtype == "matching_fields":
             print("\n Comparison Method is being set to %s \n" % (varvalue[:2].strip()) )
@@ -687,8 +702,10 @@ class BlockingPass_Model():
             self.error_message = "Creation of ParmF.txt parameter file failed."
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback.print_exception(exc_type, exc_value, exc_traceback, limit=4, file=sys.stdout)
-            print("\n Line: %s" % (exc_traceback.tb_lineno) )
-            self.error_message = self.error_message + " - " + exc_value + ' --at Line: ' + str(exc_traceback.tb_lineno)
+            self.logobject.logit("\n Error Line: %s" % (exc_traceback.tb_lineno), True, True )
+            self.error_message += " - " + exc_value + ' --at Line: ' + str(exc_traceback.tb_lineno)
+            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
         finally:
             pass
         return success
@@ -718,7 +735,10 @@ class BlockingPass_Model():
                     return_value = str(item[fldnmindx])
                     break
         else:
-            self.error_message = "Expected meta-values list, but enncountered empty object."
+            self.error_message = "Expected meta-values list, but encountered empty object."
+            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
+            return
         self.logobject.logit("\nGET_Datfldnm_frdict_strtpos(), mem-rec=%s, startpo=%s, fldnmdx=%s, stposdx=%s, result=%s" % (mem_or_rec, startpos, fldnmindx, stposindx, return_value), True, True )
         return return_value
 
@@ -808,7 +828,8 @@ class BlockingPass_Model():
             print("\n fieldname_col_in_memfile_dict: %s, startpos_col_in_memfile_dict: %s, width_col_in_memfile_dict: %s, uniqid_col_in_memfile_dict: %s" % (str(self.fieldname_col_in_memfile_dict), str(self.startpos_col_in_memfile_dict), str(self.width_col_in_memfile_dict), str(self.uniqid_col_in_memfile_dict) ) )
             print("\n In BlockingPass_Model.display_views(), about to call function display_view() -- multiple times.")
             if self.error_message is not None:
-                print("\n \n ERROR! \n %s" % (self.error_message))
+                self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+                self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
                 return False
             for i in range(0, howmany_passes):
                 bgcolor = self.bgcolors[i]    #bgcolor = "#FDFFDF"   
@@ -858,8 +879,8 @@ class BlockingPass_Model():
         else:
             success = False
             self.error_message = "Invalid type: '%s'" % (file_category.lower()) 
-            print("\n ERROR: %s" % (self.error_message) )
-            self.controller.handle_error(self.error_message)
+            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
             return
         print("\n Type of fpathobj: '%s' \n" % (str(type(fpathobj)) ) )
         if fpathobj:

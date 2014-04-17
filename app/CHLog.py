@@ -22,6 +22,7 @@ class CHLog():
     logfile_dir = ''	
     logfile_handle = None
     logfile_is_open = False
+    error_logfile = None
     #How should the information be posted?  (One or more methods can be specified)
     log_to_file = True
     log_to_db = False
@@ -113,9 +114,10 @@ class CHLog():
                     #self.logfile_handle.write(text.encode('utf-8'))
                     self.logfile_handle.write(text)
                 elif typ == "list":
-                    for item in list:
-                        if str(type(text)).lower().replace("<class '", "").replace("'>", "") == "str":
-                            self.logfile_handle.write(text.encode('utf-8'))
+                    for listitem in text:
+                        if str(type(listitem)).lower().replace("<class '", "").replace("'>", "") == "str":
+                            #self.logfile_handle.write(str(listitem).encode('utf-8'))
+                            self.logfile_handle.write(str(listitem))
                 elif typ == "dict":
                     for key, value in text:
                         self.logfile_handle.write("%s = %s" % (str(key), str(value) ) )

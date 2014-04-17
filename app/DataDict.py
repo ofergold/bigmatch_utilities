@@ -97,7 +97,7 @@ class DataDict_Model():
         print("\n Top of write_datadict_from_entrygrid(), file_name is '%s'" % (file_name) ) 
         #Call the View object to retrieve Entry Grid values (after they have been update by the user).
         if file_name:
-            del self.meta_values_after_edit[:]    
+            del self.meta_values_after_edit[:]
             self.meta_values_after_edit = []      #Clear out any previous entries
             #Load the entry grid items into the meta_values_after_edit list:			
             self.meta_values_after_edit = self.view_object.retrieve_grid_values()
@@ -124,10 +124,16 @@ class DataDict_Model():
                     newrow = []
                     i = 0
                     for row in self.meta_values_after_edit:
-                        #self.logobject.logit("\n In write_datadict(), ROW: %s (length is %s and type is %s" % (str(i), str(len(row)), str(type(row)) ), True, True)
-                        print("\n In write_datadict(), ROW: %s (length is %s and type is %s" % (str(i), str(len(row)), str(type(row)) ) )
-                        #self.logobject.logit(row, True, True)
-                        print(row)
+                        self.logobject.logit("\n In write_datadict(), ROW: %s (length is %s and type is %s" % (str(i), str(len(row)), str(type(row)) ), True, True)
+                        self.logobject.logit(row, True, True)
+                        rowcheck = ', '.join(row)
+                        rowcheck = rowcheck.replace(",", "").replace("'", "").strip()
+                        self.logobject.logit("Rowcheck: %s" % (rowcheck), True, True)
+                        if rowcheck == "":
+                            self.logobject.logit("ROW IS EMPTY. SKIP IT.", True, True)
+                            continue                  #If row is blank, skip it!
+                        else:
+                            self.logobject.logit("Rowcheck populated: %s" % (rowcheck) )
                         newrow = []
                         j = 0
                         for col in row:
@@ -135,17 +141,19 @@ class DataDict_Model():
                             #    print("Reassigning col %s in row %s to a string value," % (str(j), str(i)) )
                             #    #row[i] = newcol    #str(col)
                             #else:
-                            #newcol = str(col)
-                            rowcheck = ', '.join(row)
-                            if rowcheck.replace(',', '').strip() != '':
-                                print("Next Row to be written: %s" % (rowcheck) )
-                                newcol = str(col).replace("\n", "")
-                                newcol = newcol.replace(chr(10), "")
-                                newcol = newcol.replace(chr(13), "")
-                                #print(newcol)
-                                newrow.append(newcol)
+                            newcol = str(col).replace("\n", "")
+                            newcol = newcol.replace(chr(10), "")
+                            newcol = newcol.replace(chr(13), "")
+                            #print(newcol)
+                            newrow.append(newcol)
                             j += 1
                         #print(newrow)
+                        if len(newrow) == 1:                   
+                            if str(row[0]) == "\n":            #blank row has just newline feed 
+                                row[0] = row[0].replace("\n", "")
+                        if not row or len(row) == 0:            
+                            continue
+                        #Write this row to the CSV file:
                         csvwriter.writerow(newrow)
                         i += 1
                 
@@ -259,7 +267,7 @@ class DataDict_Model():
         return found
 
 
-
+#******************************************************************************************
 #******************************************************************************************
 class DataDict_View(Frame):
     debug = True

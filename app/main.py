@@ -15,6 +15,7 @@ from ConvertFile import *
 from BigMatchParmFile import *
 from CHLog import *
 from CHUser import *
+from CommonRL import *
 
 #*****************************************************************************************************************************************************************
 class BigMatchController():
@@ -47,6 +48,7 @@ class BigMatchController():
     match_result_dir_last_opened = None
     log = None
     user = None
+    common = None
     host_name = None
     bigmatch_exe_location = None
     enable_logging = None                    #Shut down logging until we solve permissions issues on Pennhurst server
@@ -81,6 +83,7 @@ class BigMatchController():
                 self.log = None
         if self.enable_logging:
             self.user = CHUser()
+        self.common = CommonRL(self.parent_window, self)
         self.bigmatch_exe_location = self.get_bigmatch_exe_location()
         head, tail = os.path.split(os.path.abspath(__file__))
         #self.update_controller_dirpaths(head)            #No need to set this to a default location at the outset.  That default-setting is handled by the individual FilePath objects.
@@ -132,6 +135,7 @@ class BigMatchController():
         #dictMenu.add_command(label="Load record file data dictionary", command=self.load_datadict(self.filepathobj_recfile_dict, self.datadictobj_recfile, 'Data dictionary for record file', ''))
         dictMenu.add_command(label="Create or edit data dictionary for the Record File", command=self.load_recfile_datadict)
         dictMenu.add_command(label="Create or edit data dictionary for the Memory File", command=self.load_memfile_datadict)
+        dictMenu.add_command(label="Start over with new data dictionary", command=self.startclean_new_datadict)
         menubar.add_cascade(label="Data dictionaries", menu=dictMenu)
 		
         blockMenu = Menu(menubar, tearoff=0)
@@ -307,8 +311,8 @@ class BigMatchController():
         self.bigcanvas.bigframe.clear_canvas()
 
     def handle_error(self, error_message='Error. Program cancelled.'):
-        self.bigcanvas.bigframe.clear_canvas()
-        self.load_splash(error_message)
+        self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+        self.common.handle_error(self.error_message, False, False, "datadict")
 
     def refresh_main_canvas(self):
         self.bigcanvas.bigframe.update_idletasks()
@@ -326,6 +330,28 @@ class BigMatchController():
 
     def set_startup_module_to_data_dict(self):
         self.user.write_setting_to_config_file('cmd_onload', 'load_recfile_datadict')
+
+    def startclean_new_datadict(self):
+        self.clear_canvas()
+        self.redisplay_module_after_error("datadict")
+
+    def startclean_new_blockingpass(self):
+        self.clear_canvas()
+        self.redisplay_module_after_error("blockingpass")
+        
+    def redisplay_module_after_error(self, module_name="datadict"):
+        '''This might be done after an error, but it might be initiated by the user if they want to wipe out what they started, and start fresh. '''
+        print("\n Back in main after error, callling module %s" % (module_name) )
+        if module_name.lower().strip() == "datadict":
+            self.load_recfile_datadict()
+        elif module_name.lower().strip() == "blockingpass":
+            self.load_blocking_passes()
+        elif module_name.lower().strip() == "matchreview":
+            self.load_match_review()
+        elif module_name.lower().strip() == "convertfile":
+            self.load_convert_file()
+        else:
+            self.load_recfile_datadict()
 
     def get_bigmatch_exe_location(self):
         if self.host_name.lower() == "pennhurst1.chapinhall.org":
