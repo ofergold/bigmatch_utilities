@@ -24,6 +24,8 @@ bigmatchgui/parmfiles/        # ignore all files in the parmfiles/ directory
 
 #/samplematch/*.*
 
+*.dat
+*.sas7bdat
 
 #*********************************************************************************************************************************************
 # The following are recommended gitignore files for Python apps, taken from https://github.com/github/gitignore/blob/master/Python.gitignore
