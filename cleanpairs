@@ -27,7 +27,13 @@ touch keys.dat
 
 while [ $P -lt $MAXPASS ]
 do
-	sort -r ${MEMFILE}-${RECFILE}Pairs_0$P.dat > sortedpairs$P.dat
+	if [ $P -ge 10 ]
+	then
+		W=$P
+	else
+		W=0$P
+	fi
+	sort -r ${MEMFILE}-${RECFILE}Pairs_$W.dat > sortedpairs$P.dat
 	cut -c 1-28 sortedpairs$P.dat > firstcols.dat
 	sed "s/$/ Pass_$P/" firstcols.dat > keys$P.dat
 	rm firstcols.dat
