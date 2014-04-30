@@ -1,7 +1,5 @@
 #!C:\Python33\python.exe -u
 #!/usr/bin/env python
-'''http://stackoverflow.com/questions/16429716/opening-file-tkinter '''
-''' python c:\greg\code\python\Gms_TkFileSystem5_try_button.py '''  
 from tkinter import *
 import tkinter.filedialog 
 from tkinter.filedialog import askopenfilename

@@ -1,7 +1,5 @@
 #!C:\Python33\python.exe -u
 #!/usr/bin/env python
-'''http://stackoverflow.com/questions/16429716/opening-file-tkinter '''
-''' python c:\greg\code\python\Gms_TkFileSystem5_try_button.py '''  
 from tkinter import *
 import tkinter.filedialog 
 from tkinter.filedialog import askopenfilename
@@ -18,70 +16,147 @@ gl_frame_color = "ivory"
 
 #******************************************************************************************
 class TextFile():
-    debug = True
+    debug = None
     error_message = None
     controller = None                       #Controller is the BigMatchController class in main.py 
+    parent_window = None
     csv_file = None
     text_file = None
     text_file_datadict_list = None
-    text_file_datadict_file = None
+    datadict_file = None
     datadict_column_headers = None
     csv_column_headers = []
+    top_row_is_header = False
     startpos_of_current_textfile_column = None    #This is used to continuously update the starting position of the next data column
     columns_to_widen = []
     spaces_added_so_far = 0
     max_linewidth = 0
 
-    def __init__(self):
+    def __init__(self, parent_window=None, controller=None):
         self.debug = True
+        if parent_window:
+            self.parent_window = parent_window
+        if controller:
+            self.controller = controller
 
-    def convert_csv_to_flat_text(self, csv_file, output_file):
+    def convert_csv_to_flat_text(self, csv_file, output_file, datadict_file=None, top_row_is_header=None):
         if not csv_file:
             self.error_message = "No CSV file was specified"
             print("\n\n ERROR: " + self.error_message)
             return self.error_message
         self.csv_file = csv_file
         self.text_file = output_file
-        with open(csv_file, 'r') as csvfile:
-            csvreader = csv.reader(csvfile, delimiter=',')  #, quotechar='')
-            count = 0
+        self.datadict_file = datadict_file
+        self.top_row_is_header = top_row_is_header
+        self.display_csv(self.csv_file)
+        #If we have a data dictionary, work from that. Otherwise, create a data dictionary on the fly
+        if self.datadict_file:
+            self.build_column_header_list_from_datadict()
+        else:
+            with open(csv_file, 'r') as csvfile:
+                csvreader = csv.reader(csvfile, delimiter=',') 
+                count = 0
+                for row in csvreader:
+                    if self.top_row_is_header:                  #We have a legitimate CSV header row
+                        if count == 0:                          #Row 0 is header row
+                            self.build_column_header_list_from_header_row(row)
+                            break
+                    else:
+                        temprow = []
+                        colnum = 0
+                        for col in row:
+                            temprow.append(str(colnum))          #Create a dummy row of "column headers" displayed only as the column number (zero-based)
+                            colnum += 1
+                        self.build_column_header_list_from_header_row(temprow)
+                        break
+                csvfile.close()
+            self.get_max_widths_for_csv_columns()
+        if self.debug: print("\n Column Headers AFTER build-function called:")
+        for col in self.csv_column_headers:
+            if self.debug: print(col)
+            if self.debug: print("")
+        #************************************************
+        self.write_flat_text_file_from_csv(output_file)
+        #************************************************
+        if self.debug: print("\nDatadict_file: %s" % (self.datadict_file) )
+        if not self.datadict_file:
+            self.create_data_dict_for_text_file()            #If no data dictionary is specified, build one dynamically
+        #************************************************
+
+    def get_position_of_datadict_column(self, which_column):
+        which_column = which_column.lower().strip()
+        returnval = None
+        with open(self.datadict_file, 'r') as csvfile:
+            csvreader = csv.reader(csvfile, delimiter=',') 
+            row_index = 0
             for row in csvreader:
-                if count == 0:
-                    self.build_column_header_list(row)
-					
-                print(row[0] + " " +row[7] + " " +row[8] + " " +row[9] + " " +row[10] + " " +row[11] + " " +row[12] + " " +row[13] + " " +row[14] + " " +row[15] + " " +row[16] + " " +row[17] + " " +row[18] + " " +row[19] + " " +row[20] + " " +row[21] )
-                count += 1
-                if count > 50:
-                    break
+                if row_index == 0:       #Header row of data dictionary
+                    col_index = 0
+                    for col in row:
+                        col_hdr = str(row[col_index]).lower().strip()
+                        if self.debug: print("Seeking datadict column '%s'... Found: %s"  % (which_column, col_hdr) )
+                        if col_hdr == which_column:
+                            returnval = col_index
+                            break
+                        col_index += 1
+                break
             csvfile.close()
+        if self.debug: print("Seeking datadict column '%s'... Found position: %s"  % (which_column, returnval) )
+        return returnval
 
-        self.get_max_widths_for_columns()
+    def build_column_header_list_from_datadict(self, checked=1):
+        '''' docstring '''
+        #Ascertain the correct position within the Data Dictionary where column name, width and startpos are stored
+        pos_colname = self.get_position_of_datadict_column("column_name")
+        if pos_colname is None:
+            self.error_message = "Unable to locate ColumnName specifiers in data dictionary"
+            print("\n\n---------------------------\nERROR: %s" % (self.error_message) )
+            return
+        else:
+            pos_colname = int(pos_colname)
+        pos_width = self.get_position_of_datadict_column("width")
+        if pos_width is not None:
+            pos_width = int(pos_width)
+        pos_startpos = self.get_position_of_datadict_column("start_pos")
+        if pos_startpos is not None:
+            pos_startpos = int(pos_startpos)
+        pos_datatype = self.get_position_of_datadict_column("data_format")
+        if pos_datatype is not None:
+            pos_datatype = int(pos_datatype)
+        col_hdr = datatype = ""
+        width = startpos = 0
+        with open(self.datadict_file, 'r') as csvfile:
+            csvreader = csv.reader(csvfile, delimiter=',') 
+            col_index = 0
+            for row in csvreader:
+                if col_index > 0:
+                    #Determine whether this is a blank row in the file
+                    if self.row_is_empty(row):
+                        continue
+                    col_hdr = row[pos_colname]
+                    if not col_hdr:
+                        self.error_message = "Unable to read column name from data dictionary"
+                    if pos_width:
+                        width = row[pos_width]
+                    if pos_startpos:
+                        startpos = row[pos_startpos]
+                    if pos_datatype:
+                        datatype = row[pos_datatype]
+                    temp = {"col_index":col_index-1, "col_hdr":col_hdr, "max_width":width, "start_pos":startpos, "data_type":"", "selected":checked}
+                    self.csv_column_headers.append(temp)
+                    if self.debug: print("Added column '%s' with width %s to the DataDict array." % (col_hdr, width) )
+                col_index += 1
 
-        #print("\n Column Headers AFTER max called:")
-        #for col in self.csv_column_headers:
-        #    print(col)
-
-        self.write_flat_text_file(output_file)
-
-        self.create_data_dict_for_text_file()
-
-    def build_column_header_list(self, hdr_row):
-        checked = 0
+    def build_column_header_list_from_header_row(self, hdr_row, checked=1):
         col_index = 0
         for col_hdr in hdr_row:
-            #In this test case, explicitly choose specific columns to be included in the export.  But in future, give the user a way to select the columns they want to export.
-            if col_index < 23:
-                checked = 1
-            else:
-                checked = 0
             col_hdr = col_hdr.strip()
-            print("(%s) col_hdr: %s" % (col_index, col_hdr) )
+            if self.debug: print("(%s) col_hdr: %s" % (col_index, col_hdr) )
             temp = {"col_index":col_index, "col_hdr":col_hdr, "max_width":0, "start_pos":0, "data_type":"", "selected":checked}
             self.csv_column_headers.append(temp)
             col_index += 1
-            
 
-    def get_max_widths_for_columns(self):
+    def get_max_widths_for_csv_columns(self):
         col_index = 0
         max_width = 0
         self.startpos_of_current_textfile_column = 1
@@ -91,19 +166,22 @@ class TextFile():
                 #BEFORE we move on to the next selected column, calculate its STARTING POSITION, based on the summed column-widths of all previous columns.
                 self.csv_column_headers[col_index]["start_pos"] = self.startpos_of_current_textfile_column    #Update the master list of Columns -- ADD A SPACE AT END OF EACH COLUMN FOR READABILITY
                 #Now get the max_width of the current column:				
-                max_width = self.get_max_width_for_column(col_index)
+                max_width = self.get_max_width_for_csv_column(col_index)
                 max_width = max_width +1                                          #ADD A SPACE AT END OF EACH COLUMN FOR READABILITY
                 self.csv_column_headers[col_index]["max_width"] = max_width       #Update the master list of Columns 
                 txt = col["col_hdr"].ljust(20)
-                print("ColIndex: %s Caption: %s Width: %s, Startpos: %s" % (col_index, txt, max_width, self.startpos_of_current_textfile_column))
+                if self.debug: print("ColIndex: %s Caption: %s Width: %s, Startpos: %s" % (col_index, txt, max_width, self.startpos_of_current_textfile_column))
                 self.startpos_of_current_textfile_column += (max_width)
             
-    def get_max_width_for_column(self, col_index):
+    def get_max_width_for_csv_column(self, col_index):
         max_width = 0
         with open(self.csv_file, 'r') as csvfile:
             csvreader = csv.reader(csvfile, delimiter=',') 
             count = 0
             for row in csvreader:
+                #Determine whether this is a blank row in the file
+                if self.row_is_empty(row):
+                    continue
                 if count > 0:
                     cell = str(row[col_index]).strip()
                     if len(cell) > max_width:
@@ -112,33 +190,35 @@ class TextFile():
             csvfile.close()
         return max_width           
 	
-    def write_flat_text_file(self, output_file):
+    def write_flat_text_file_from_csv(self, output_file):
         with open(self.csv_file, 'r') as csvfile:
             csvreader = csv.reader(csvfile, delimiter=',')  #, quotechar='')
-            count = 0
+            rownum = 0
             with open(output_file, 'w') as textfile:
                 for row in csvreader:
-                    #print("ROW %s" % (count) )
+                    if self.debug: print("ROW %s" % (rownum) )
+                    if self.row_is_empty(row):
+                        continue
                     textrow = ""
-                    if count > 0:   #Exclude the header row
+                    if rownum > 0:   #Exclude the header row
                         for col in self.csv_column_headers:
                             if str(col["selected"]) == "1":
                                 col_index = col["col_index"]
                                 max_width = int(col["max_width"])
                                 val = str(row[col_index]).strip()
-                                #print("Writing column %s of row %s, value %s" % (col_index, count, val) )
+                                if self.debug: print("Writing column %s of row %s, value %s" % (col_index, rownum, val) )
                                 #textfile.write(val.ljust(max_width))
                                 textrow = textrow + val.ljust(max_width)
                         textfile.write(textrow + "\n")
                         #textfile.write("\n")
-                    count += 1
+                    rownum += 1
                 textfile.close()
             csvfile.close()
 
-
     def create_data_dict_for_text_file(self):
+        print("\nNo Data Dictionary was specified, so function create_data_dict_for_text_file() was called.")
         self.text_file_datadict_list = []       #text_file_datadict_list is the list of lists (a list of CSV rows comprising the Data Dictionary for the text file being created).  It can be written to the CSV file using csvwriter.writerows(list)
-        datadict = DataDict_Model(self, self)   #BigMatch DataDict class
+        datadict = DataDict_Model(self.parent_window, self.controller)   #BigMatch DataDict class
         hdr_list = datadict.load_standard_datadict_headings()    #Make sure we are using the standard, updated list of column headings for the Data Dictionary
         datadict = None                         #Erase the class instantiation when done to release memory
         #Check our assumptions about which Data Dictionary column headings are in the standard:		
@@ -178,9 +258,9 @@ class TextFile():
                 self.text_file_datadict_list.append(row)
                     
         #Write the Data Dictionary attributes to a CSV file:
-        if not self.text_file_datadict_file:
-            self.text_file_datadict_file = self.csv_file.replace(".csv", ".dict.csv")
-        with open(self.text_file_datadict_file, 'w') as dictfile:
+        if not self.datadict_file:
+            self.datadict_file = self.csv_file.replace(".csv", ".dict.csv")
+        with open(self.datadict_file, 'w') as dictfile:
             csvwriter = csv.writer(dictfile, delimiter=',')
             #csvwriter.writerows(self.text_file_datadict_list)
             #First write the data dict column headers:
@@ -188,9 +268,9 @@ class TextFile():
             #Now write out one ROW for every selected COLUMN from the CSV being converted.
             for dictrow in self.text_file_datadict_list:
                 csvwriter.writerow(dictrow)
-            print("\n Data Dictionary:")
+            if self.debug: print("\n Data Dictionary:")
             for col in self.text_file_datadict_list:
-                print(col)
+                if self.debug: print(col)
             dictfile.close()
 
     def build_dict_of_datadict_column_headers(self, hdr_list):
@@ -198,12 +278,12 @@ class TextFile():
         for hdr in hdr_list:
             index = hdr_list.index(hdr)
             self.datadict_column_headers[index] = hdr
-        print("DataDict headers columns:")
+        if self.debug: print("DataDict headers columns:")
         for hdrcol in self.datadict_column_headers:
-            print(hdrcol)
+            if self.debug: print(hdrcol)
  
     def widen_columns_in_fixed_width_textfile(self, columns_to_widen=None, text_file=None, data_dict=None, output_file=None):
-        print("\n Top of function widen_columns_in_fixed_width_textfile()... Type of columns_to_widen=%s, length is %s" % (str(type(columns_to_widen)), len(columns_to_widen) ) )
+        if self.debug: print("\n Top of function widen_columns_in_fixed_width_textfile()... Type of columns_to_widen=%s, length is %s" % (str(type(columns_to_widen)), len(columns_to_widen) ) )
         if columns_to_widen is None:
             columns_to_widen = self.columns_to_widen
         else:
@@ -212,19 +292,19 @@ class TextFile():
             text_file = self.text_file
         if output_file is None:
             ext = text_file.strip().lower()[-4:]
-            print("\n EXT is: " + ext)
+            if self.debug: print("\n EXT is: " + ext)
             output_file = text_file.strip().lower().replace(ext, "_newfldwidths" + ext)
         if data_dict is None:
-            data_dict = self.text_file_datadict_file
+            data_dict = self.datadict_file
         else:
-            if self.text_file_datadict_file	is None:
-                self.text_file_datadict_file = data_dict
+            if self.datadict_file	is None:
+                self.datadict_file = data_dict
 
         #TO DO: check that all required file names and column attributes are provided before proceeding. Raise error if not.
         #For every column specified, call the function to widen it:
         self.spaces_added_so_far = 0
         for col in self.columns_to_widen:
-            print(col)
+            if self.debug: print(col)
             self.widen_column_in_fixed_width_textfile(col["column_name"], col["num_chars_to_add"], col["startpos"], col["width"], text_file, output_file)
         if self.error_message:
             print("\n \n ERROR: %s" % (self.error_message) )
@@ -240,7 +320,7 @@ class TextFile():
             column_attribs = self.get_column_startpos_and_length(column_name, data_dict)
             start_pos = column_attribs["startpos"]
             width = column_attribs["width"]
-        print("\n In widen_column_in_fixed_width_textfile(), widening '%s' by %s columns... spaces_added_so_far: %s" % (column_name, num_chars_to_add, self.spaces_added_so_far) )
+        if self.debug: print("\n In widen_column_in_fixed_width_textfile(), widening '%s' by %s columns... spaces_added_so_far: %s" % (column_name, num_chars_to_add, self.spaces_added_so_far) )
         #Widen the field.  
         #NOTE: This function triggers a CREATION or OVERWRITE of the output file.  To support multiple column widenings, we need to save the changes each time to a temp file which reflects all changes made to date--and then copy the temp file contents into the output file.
         if self.spaces_added_so_far == 0:                  #This is the first column to be widened
@@ -265,7 +345,7 @@ class TextFile():
                     tempfile.write("\n")
                     #print("ROW %s:   %s" % (count, newrow) )
                     if str(count)[-2:] =="00":
-                        print("ROW %s" % (count) )
+                        if self.debug: print("ROW %s" % (count) )
                     count += 1
                 outputfile.close()
                 shutil.copyfile(temp_file, output_file)        #Copy the temp data file to output file (which is the final result the user will now resume processing)
@@ -276,7 +356,7 @@ class TextFile():
     def get_column_startpos_and_length(self, column_name, data_dict=None):
         column_name = str(column_name).lower().strip()
         if data_dict is None:
-            data_dict = self.text_file_datadict_file
+            data_dict = self.datadict_file
         #Get the column indices for column_name, start_pos and width in the data dict
         coldict = self.locate_crucial_datadict_columns(data_dict)
         column_attribs = {}
@@ -290,17 +370,17 @@ class TextFile():
                     column_attribs["width"] = row[coldict["width"]]
                     break
             csvfile.close()
-        print("At end of get_column_startpos_and_length(), column_attribs:")
-        print(column_attribs)
+        if self.debug: print("At end of get_column_startpos_and_length(), column_attribs:")
+        if self.debug: print(column_attribs)
         return column_attribs
 
     def locate_crucial_datadict_columns(self, data_dict=None):
         '''docstring '''
         if data_dict is None:
-            data_dict = self.text_file_datadict_file
+            data_dict = self.datadict_file
         else:
-            if self.text_file_datadict_file	is None:
-                self.text_file_datadict_file = data_dict
+            if self.datadict_file	is None:
+                self.datadict_file = data_dict
         coldict = {}
         #Traverse header columns of the Data Dictionary until we locate the column_name, start_pos, and width columns--then return their column indices.
         with open(data_dict, 'rt') as csvfile:
@@ -312,27 +392,27 @@ class TextFile():
             width_column = None
             for row in csvreader:
                 if(row_index == 0):       #Top (header) row in the Data Dictionary CSV
-                    print("*****locate_crucial_datadict_columns(): row[0] = " + str(row[0]) + " mem_or_rec: " + mem_or_rec + "***")
+                    if self.debug: print("*****locate_crucial_datadict_columns(): row[0] = " + str(row[0]) + " mem_or_rec: " + mem_or_rec + "***")
                     column_index = 0
                     for cell in row:
                         #print("Row (" + str(row_index) + ") col (" + str(column_index) + "): " + str(cell) )
                         if(row_index == 0):   #Top (header) row in the Data Dictionary CSV
                             if str(cell).lower() == "column_name" or str(cell).lower() == "columnname":
                                 colname_column = column_index
-                                print("colname_column = %s" % (column_index) )
+                                if self.debug: print("colname_column = %s" % (column_index) )
                             elif str(cell).lower() == "start_pos":
                                 startpos_column = column_index
-                                print("startpos_column = %s" % (column_index) )
+                                if self.debug: print("startpos_column = %s" % (column_index) )
                             elif str(cell).lower() == "width":
                                 width_column = column_index
-                                print("width_column = %s" % (column_index) )
+                                if self.debug: print("width_column = %s" % (column_index) )
                         column_index += 1
                         break         #Automatically break after the first ROW in the file
             csvfile.close()
         coldict["column_name"] = colname_column
         coldict["startpos"] = startpos_column
         coldict["width"] = width_column
-        print("\n colname_column: %s, startpos_column: %s, width_column: %s, uniqid_column: %s" % (colname_column, startpos_column, width_column) )
+        if self.debug: print("\n colname_column: %s, startpos_column: %s, width_column: %s, uniqid_column: %s" % (colname_column, startpos_column, width_column) )
         if coldict["column_name"] is not None and coldict["startpos"] is not None and coldict["width"] is not None:
             success = True
         else:
@@ -342,6 +422,33 @@ class TextFile():
 
         return coldict
 
+    def row_is_empty(self, row):
+        isempty = False
+        rowcheck = ','.join(row)
+        rowcheck = rowcheck.replace(",", "").replace("'", "").replace("\n", "").replace("?", "").strip()
+        #print("Rowcheck: %s" % (rowcheck))
+        if rowcheck == "":
+            #print("ROW IS EMPTY. SKIP IT.")
+            isempty = True
+        return isempty
+
+    def display_csv(self, csv_file=None):
+        if not csv_file:
+            csv_file = self.csv_file
+        with open(csv_file, 'r') as csvfile:
+            #Debug display top rows:
+            csvreader = csv.reader(csvfile, delimiter=',') 
+            count = 0
+            for row in csvreader:
+                #Determine whether this is a blank row in the file
+                if self.row_is_empty(row):
+                    continue
+                #print(row[0] + " " +row[7] + " " +row[8] + " " +row[9] + " " +row[10] + " " +row[11] + " " +row[12] + " " +row[13] + " " +row[14] + " " +row[15] + " " +row[16] + " " +row[17] + " " +row[18] + " " +row[19] + " " +row[20] + " " +row[21] )
+                print("(" + str(count) + ") " + row[0] + " " +row[1] + " " +row[2] + " " +row[3] + " " +row[4] + " " +row[5])
+                count += 1
+                if count > 20:
+                    break
+            csvfile.close()
 
 #******************************************************************************************		
 #******************************************************************************************		

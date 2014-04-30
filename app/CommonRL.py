@@ -30,12 +30,13 @@ class CommonRL():
         title = "Warning"
         if abort_all:
             title = "Error"
-        if error_message.strip()[-1] != ".":
-            error_message = error_message.strip() + "."
-        user_response = tkinter.messagebox.showwarning(title, error_message + "   Procedure cancelled.")
+        if error_message:
+            if str(error_message).strip()[-1] != ".":
+                error_message = error_message.strip() + "."
+            user_response = tkinter.messagebox.showwarning(title, error_message + "   Procedure cancelled.")
         if abort_all:
             sys.exit(1)
         if not continue_after:
             self.controller.clear_canvas()
             self.controller.redisplay_module_after_error(module_to_reload_afterwards)
-	
+

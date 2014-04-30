@@ -104,9 +104,9 @@ class FilePath_Model():
             self.update_filepath_display(file_name_with_path)    #Refresh the textbox displaying the selected file
             head, tail = os.path.split(file_name_with_path)
             self.controller.dir_last_opened = head               #Store the path last opened by the user and set this as a default starting point for FileOpen dialogs
-            if notify_master:                #A FileOpen dialog normally serves the purposes of another class, such as Data Dict or BlockingPass. The Master class needs to know when the user selects a file.
+            if notify_master:                                    #A FileOpen dialog normally serves the purposes of another class, such as Data Dict or BlockingPass. The Master class needs to know when the user selects a file.
                 print("Notifying the master object that the user has selected a new file: %s" % (file_name_with_path) )
-                if callback_string == '':
+                if callback_string == '':                        #Callback string is crucial for assigning the opened file's name and location to the correct class property in the class that created this Open File dialog!
                     callback_string = "load, " + self.alias 
                 self.master.update_filepath(file_name_with_path, callback_string, self.alias)
         return file_name_with_path
@@ -119,19 +119,19 @@ class FilePath_Model():
             print("\n" + "In save_as_file, self.file_name_with_path = '" + self.file_name_with_path + "'")
             if self.view_object is None:
                 self.display_view()  
-            self.update_filepath_display(self.file_name_with_path)  #Refresh the textbox displaying the selected file
+            self.update_filepath_display(self.file_name_with_path)   #Refresh the textbox displaying the selected file
             head, tail = os.path.split(file_name_with_path)
-            self.controller.dir_last_opened = head               #Store the path last opened by the user and set this as a default starting point for FileOpen dialogs
+            self.controller.dir_last_opened = head                   #Store the path last opened by the user and set this as a default starting point for FileOpen dialogs
             if notify_master:                #A FileOpen dialog normally serves the purposes of another class, such as Data Dict or BlockingPass. The Master class needs to know when the user selects a file.
                 print("Notifying the master object that the user has selected a new file: %s" % (file_name_with_path) )
                 if callback_string == '':
-                    callback_string = "save_as, " + self.alias 
+                    callback_string = "save_as, " + self.alias       #Callback string is crucial for assigning the opened file's name and location to the correct class property in the class that created this Open File dialog!
                 self.master.update_filepath(file_name_with_path, callback_string, self.alias)      #Alert the parent module (datadict, blockingpass, etc.) that a file name/path was changed!
         return file_name_with_path
 
     def clear_file(self):
         self.file_name_with_path = ""
-        self.update_filepath_display("")         #Refresh the textbox displaying the selected file
+        self.update_filepath_display("")                   #Refresh the textbox displaying the selected file
         callback_string = self.open_or_save_as
         self.master.update_filepath("", callback_string)   #Alert the parent module (datadict, blockingpass, etc.) that a file name/path was changed!
 
@@ -161,7 +161,7 @@ class FilePath_Model():
         if not initial_dir:
             #if no other strategy is found, punt and use the current executing program's folder
             initial_dir = os.path.dirname(os.path.realpath(__file__))
-        self.logobject.logit("\nIn calc_initial_dir(), initdir is %s" % (initial_dir), True, True )
+        self.logobject.logit("In calc_initial_dir(), initdir is %s" % (initial_dir), True, True )
         #Set the Initial_Dir property to the calculated value:
         self.initial_dir = initial_dir
         return initial_dir

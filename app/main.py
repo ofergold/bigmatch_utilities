@@ -12,6 +12,8 @@ from DataDict import *
 from FilePath import *
 from MatchReview import *
 from ConvertFile import *
+from Datafile_to_RDBMS_UI import *
+from RDBMS_Read_Export_UI import *
 from BigMatchParmFile import *
 from CHLog import *
 from CHUser import *
@@ -140,6 +142,7 @@ class BigMatchController():
 		
         blockMenu = Menu(menubar, tearoff=0)
         blockMenu.add_command(label="Create parameter file from blocking passes", command=self.load_blocking_passes)
+        blockMenu.add_command(label="Start over with new blocking pass", command=self.startclean_new_blockingpass)
         menubar.add_cascade(label="Blocking passes", menu=blockMenu)
 
         reviewMenu = Menu(menubar, tearoff=0)
@@ -153,7 +156,13 @@ class BigMatchController():
 
         convertMenu = Menu(menubar, tearoff=0)
         convertMenu.add_command(label="Convert SAS file to text", command=self.load_convert_file_sas_to_text)
+        convertMenu.add_command(label="Convert CSV file to flat file", command=self.load_convert_file_csv_to_text)
+        convertMenu.add_command(label="Convert csv or flat file to sqlite table", command=self.load_convert_file_txt_to_sqlite)
         menubar.add_cascade(label="Convert files", menu=convertMenu)
+
+        dbMenu = Menu(menubar, tearoff=0)
+        dbMenu.add_command(label="Display Sqlite data", command=self.display_sqlite_data)
+        menubar.add_cascade(label="Read database", menu=dbMenu)
 
         if self.enable_logging:
             defltMenu = Menu(menubar, tearoff=0)
@@ -297,11 +306,34 @@ class BigMatchController():
         self.convertfile_model = ConvertFile_Model(self.parent_window, self, source_format, output_format)
         self.convertfile_model.display_view(self.bigcanvas.bigframe)
 
+    def instantiate_datafile_rdbms_ui(self, source_format="txt", output_format="sqlite"):
+        print("\nIn MAIN, load datafile_to_rdbms_ui()") 
+        self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
+        self.load_splash("Chapin Hall's BigMatch user interface -- convert text file to database table")
+        self.convertfile_model = Datafile_to_RDBMS_UI_Model(self.parent_window, self, source_format, output_format)
+        self.convertfile_model.display_view(self.bigcanvas.bigframe)
+
+    def instantiate_readexport_rdbms_ui(self, db_platform="sqlite", output_format="text"):
+        print("\nIn MAIN, load ReadExport_Rdbms_UI()") 
+        self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
+        self.load_splash("Chapin Hall's BigMatch user interface -- read/export data from database")
+        self.db_readexport_model = RDBMS_Read_Export_UI_Model(self.parent_window, self, db_platform, output_format)
+        self.db_readexport_model.display_view(self.bigcanvas.bigframe)
+
+    def display_sqlite_data(self):
+        self.instantiate_readexport_rdbms_ui("sqlite")
+        
     def load_convert_file_sas_to_text(self):
         self.instantiate_convert_file("sas", "text")
         #self.convertfile_model.set_source_format("sas")
         #self.convertfile_model.set_output_format("text")
+        
+    def load_convert_file_csv_to_text(self):
+        self.instantiate_convert_file("csv", "text")
 
+    def load_convert_file_txt_to_sqlite(self):
+        self.instantiate_datafile_rdbms_ui("txt", "sqlite")
+        
     def generate_parmfile(self, filename_with_path=''):
         print("This function is not yet available.")
 
@@ -341,7 +373,7 @@ class BigMatchController():
         
     def redisplay_module_after_error(self, module_name="datadict"):
         '''This might be done after an error, but it might be initiated by the user if they want to wipe out what they started, and start fresh. '''
-        print("\n Back in main after error, callling module %s" % (module_name) )
+        print("\n Back in main.py after error, calling module %s" % (module_name) )
         if module_name.lower().strip() == "datadict":
             self.load_recfile_datadict()
         elif module_name.lower().strip() == "blockingpass":
@@ -360,6 +392,8 @@ class BigMatchController():
         elif self.host_name.lower() == "chrsd1-gsanders":
             loc = os.path.join("C:\Greg", "ChapinHall", "RecordLinking", "BigMatch", "bigmatchqst.exe")
             self.bigmatch_exe_location = loc
+        else:
+            self.bigmatch_exe_location = "bigmatch"
         return self.bigmatch_exe_location
 
     def call_bigmatch(self):
