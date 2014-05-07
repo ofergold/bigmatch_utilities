@@ -273,6 +273,7 @@ class DataDict_View(Frame):
     #controller = None
     model = None
     entry_grid = None
+    num_initial_rows = 26
 	
     def __init__(self, container, model):
         Frame.__init__(self, container)
@@ -283,6 +284,8 @@ class DataDict_View(Frame):
         show_grid = False		
         kw_grid = {"width":16}                            #Width of each grid cell 
         self.entry_grid = EntryGrid(self, self.model.meta_columns, self.model.meta_rownums, self.model.meta_values, show_grid, **kw_grid)
+        if self.entry_grid.num_initial_rows:
+            self.num_initial_rows = self.entry_grid.num_initial_rows       #Keep in sync with whatever num-rows value is specified in the grid object itself.
         #Display the frame:
         print("\n" + "In DataDict_View_Contnts._init_, datadict_file_to_load_from = '" + str(self.model.datadict_file_to_load_from) + "' -- and show_view=" + str(self.model.show_view) )
         if self.model.show_view:
@@ -308,12 +311,13 @@ class DataDict_View(Frame):
         if not self.model.meta_rownums:
             self.model.meta_rownums = []
             i = 1
-            num_initial_rows = 26    #The number of blank rows that will be displayed initially in the Data Dictionary Entry Grid.
-            for i in range(1, num_initial_rows):
+            if not self.num_initial_rows:
+                self.num_initial_rows = 26    #The number of blank rows that will be displayed initially in the Data Dictionary Entry Grid.
+            for i in range(1, self.num_initial_rows):
                 self.model.meta_rownums.append(i)     #['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20']
         if not self.model.meta_values:
             self.model.meta_values = []
-            for i in range(0, num_initial_rows):
+            for i in range(0, self.num_initial_rows):
                meta_temp = ['', '', '', '', '', '', '', '']     #number of columns in each row -- MUUST MATCH THE NUMBER ENTERED IN THE DEFAULT COLUMN LIST
                self.model.meta_values.append(meta_temp)		#meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.
 			   
