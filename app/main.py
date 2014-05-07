@@ -2,6 +2,7 @@
 #!/usr/bin/env python
 
 import sys
+import traceback
 import os, os.path
 import platform
 import socket
@@ -18,12 +19,14 @@ from BigMatchParmFile import *
 from CHLog import *
 from CHUser import *
 from CommonRL import *
+from Error_UI import *
 
 #*****************************************************************************************************************************************************************
 class BigMatchController():
     '''BigMatchController class creates a menu and a canvas for displaying various widgets. It also calls all methods necessary for instantiating those various widgets.'''
     debug = True
     error_message = None
+    error_list = []                 #Collection of errors that have been logged
     parent_window = None	
     bigcanvas = None				#Main scrolling canvas on which the main frame object sits.  The canvas serves mainly to host the scrollbars.
     framestack_counter = None	    
@@ -31,12 +34,14 @@ class BigMatchController():
     blockingpass_model = None       
     blocking_passes = []			#Index of Blocking Pass objects that have been instantiated
     matchreview_model = None
-    datadictobj_recfile = None
-    datadictobj_memfile = None
-    filepathobj_recfile	= None
-    filepathobj_memfile = None
-    filepathobj_recfile_dict = None
-    filepathobj_memfile_dict = None
+    error_ui = None            #Frame for displaying error information at runtime
+    datadict_model = None
+    #datadictobj_recfile = None
+    #datadictobj_memfile = None
+    #filepathobj_recfile	= None
+    #filepathobj_memfile = None
+    #filepathobj_recfile_dict = None
+    #filepathobj_memfile_dict = None
     dir_last_opened = None
     datadict_dir_last_opened = None
     blockingpass_dir_last_opened = None
@@ -48,7 +53,7 @@ class BigMatchController():
     parmf_last_opened = None
     parmn_last_opened = None
     match_result_dir_last_opened = None
-    log = None
+    logobject = None
     user = None
     common = None
     host_name = None
@@ -73,16 +78,18 @@ class BigMatchController():
         print("\n os_name: %s, os_platform: %s, os_release: %s" % (self.os_name, self.os_platform, self.os_release) )
         if self.host_name.upper().strip() == "CHRSD1-GSANDERS" and getpass.getuser().upper().strip() == "GSANDERS":
             self.enable_logging = True
+        elif self.host_name.upper().strip() == "GREGORY" and getpass.getuser().upper().strip() == "LISA":
+            self.enable_logging = True
         if self.enable_logging:
             print("Logging enabled (by user ID)")
             #Make sure we can actually write to a file (permissions support logging)
-            self.log = CHLog()
-            logtest = self.log.test_subfolder_filewrite()
+            self.logobject = CHLog(self.enable_logging, self.enable_logging)
+            logtest = self.logobject.test_subfolder_filewrite()
             print("Logging write test returned %s)" % (logtest) )
             self.enable_logging = logtest             #If test failed, set enable_logging to False
             if not self.enable_logging:
                 print("Logging write test failed")
-                self.log = None
+                self.logobject = None
         if self.enable_logging:
             self.user = CHUser()
         self.common = CommonRL(self.parent_window, self)
@@ -101,42 +108,21 @@ class BigMatchController():
         self.load_splash("Chapin Hall's BigMatch user interface - blocking pass definitions")
 
         #******************************************************
-        #BLOCKING PASS FRAMES:
-        if False:
-            self.load_blocking_passes()
-			
-        #******************************************************
         #Disable the following section.  OpenFile dialogs are managed by individual modules such as datadict, blockingpass, etc. 
         #FILE LOCATION FRAMES:  
 		#Parms:  FilePath(parent_window, show_view=False, title='', bgcolor=gl_frame_color, file_types=[('All files', '*'),('Text files', '*.csv;*.txt')], frame_width=gl_frame_width, frame_height=gl_frame_height)
         #frame_color = "ivory"
         #open_or_save_as = "open"
         #self.filepathobj_memfile_dict.display_view(self.bigcanvas.bigframe)	        #Display the dialog for user to select a data dict file
-
-        #******************************************************
-        #DATA DICTIONARY FRAMES:
-        #Instantiate, but don't DISPLAY the Data Dictionary frame until/unless we identify a Data Dictionary file for either Record File or Memory File.
-        if False:
-            show_frame = False
-            datadict_filename = ''
-            print("\n Controller is about to instantiate DataDict class (twice)")
-            #self.load_recfile_datadict()
-            self.load_memfile_datadict()
 			
         #*******************************************************************************************************************
         #MENU OPTIONS
         menubar = Menu(self.parent_window)
         self.parent_window.config(menu=menubar)
-        #fileMenu = Menu(menubar, tearoff=0)
-        #fileMenu.add_command(label="Choose record file", command=self.filepathobj_recfile.locate_file)
-        #fileMenu.add_command(label="Choose memory file", command=self.filepathobj_memfile.locate_file)
-        #menubar.add_cascade(label="Data files", menu=fileMenu)
         dictMenu = Menu(menubar, tearoff=0)
-        #dictMenu.add_command(label="Create record file data dictionary", command=self.load_recfile_datadict)
-        #dictMenu.add_command(label="Create memory file data dictionary", command=self.load_memfile_datadict)
-        #dictMenu.add_command(label="Load record file data dictionary", command=self.load_datadict(self.filepathobj_recfile_dict, self.datadictobj_recfile, 'Data dictionary for record file', ''))
-        dictMenu.add_command(label="Create or edit data dictionary for the Record File", command=self.load_recfile_datadict)
-        dictMenu.add_command(label="Create or edit data dictionary for the Memory File", command=self.load_memfile_datadict)
+        dictMenu.add_command(label="Create or edit data dictionary", command=self.load_datadict)
+        #dictMenu.add_command(label="Create or edit data dictionary for the Record File", command=self.load_recfile_datadict)
+        #dictMenu.add_command(label="Create or edit data dictionary for the Memory File", command=self.load_memfile_datadict)
         dictMenu.add_command(label="Start over with new data dictionary", command=self.startclean_new_datadict)
         menubar.add_cascade(label="Data dictionaries", menu=dictMenu)
 		
@@ -171,7 +157,13 @@ class BigMatchController():
             defltMenu.add_command(label="Set startup to Match Review", command=self.set_startup_module_to_match_review)
             defltMenu.add_command(label="Set startup to File Conversion", command=self.set_startup_module_to_file_convert)
             menubar.add_cascade(label="Default settings", menu=defltMenu)
-        
+            #Test error display:
+            self.add_error_to_list("Testing 123", "Type exception", "Hey, you can't do that!", None)
+            self.add_error_to_list("Another Test", "Format exception", "No, you can't do that either.", None)
+            errMenu = Menu(menubar, tearoff=0)
+            errMenu.add_command(label="View errors", command=self.load_error_display)
+            menubar.add_cascade(label="Error display", menu=errMenu)
+
         #if self.bigmatch_exe_location:
         #    runMenu = Menu(menubar, tearoff=0)
         #    runMenu.add_command(label="Run BigMatch", command=self.generate_parmfile)
@@ -192,8 +184,8 @@ class BigMatchController():
         #Load the user's preferred start-up module:
         if self.enable_logging:
             setting = self.user.get_config_setting("cmd_onload")
-            if setting.lower().strip() == "load_recfile_datadict":
-                self.load_recfile_datadict()
+            if setting.lower().strip() == "load_datadict":
+                self.load_datadict()
             elif setting.lower().strip() == "load_blocking_passes":
                 self.load_blocking_passes()
             elif setting.lower().strip() == "load_match_review":
@@ -201,9 +193,9 @@ class BigMatchController():
             elif setting.lower().strip() == "load_convert_file":
                 self.load_convert_file()
             else:
-                self.load_recfile_datadict()
+                self.load_datadict()
         else:
-            self.load_recfile_datadict()
+            self.load_datadict()
 
     def update_controller_dirpaths(self, file_name_with_path):     #Set default locations for FileOpen dialogs at session launch.
         if file_name_with_path:
@@ -224,8 +216,21 @@ class BigMatchController():
         self.splash_label.config(font=("Arial", 16, "bold"), borderwidth=1, width=65, anchor=W, justify="left", padx=0, pady=0, background="ivory")  #width=100, 
         self.bigcanvas.bigframe.refresh_canvas()
 		
-    def load_datadict(self, which, datadict_filename=""):
-        print("In main.load_datadict() with which=%s and datadict_filename=%s" % (str(which), str(datadict_filename) ) )
+    def load_datadict(self, datadict_filename="", mem_or_rec="rec"):
+        print("In main.load_datadict() with mem_or_rec=%s and datadict_filename=%s" % (str(mem_or_rec), str(datadict_filename) ) )
+        show_frame = False            #Don't immediately display the view
+        if self.datadict_model:
+            self.datadict_model = None
+        kw_datadict = {"mem_or_rec":mem_or_rec}
+        self.bigcanvas.bigframe.clear_canvas()          #Unload (hide) all frame objects
+        self.load_splash("BigMatch data dictionary manager")    #dictionary for " + which_name)
+        self.datadict_model = DataDict_Model(self.parent_window, self, datadict_filename, show_frame, "Record file data dictionary", **kw_datadict)
+        self.datadict_model.display_view(self.bigcanvas.bigframe)
+        return True
+
+    '''
+    def load_datadict(self, datadict_filename="", mem_or_rec="rec"):
+        print("In main.load_datadict() with mem_or_rec=%s and datadict_filename=%s" % (str(mem_or_rec), str(datadict_filename) ) )
         if which.lower()=="rec":
             which_name = "Record File"
         elif which.lower()=="mem":
@@ -234,11 +239,8 @@ class BigMatchController():
             self.error_message = "Invalid data dictionary type: " + which
             print(self.error_message)
         self.bigcanvas.bigframe.clear_canvas()          #Unload (hide) all frame objects
-        self.load_splash("BigMatch data dictionary utility - dictionary for " + which_name)
-        if which.lower()=="rec":
-            self.datadictobj_recfile.display_view(self.bigcanvas.bigframe)
-        elif which.lower()=="mem":
-            self.datadictobj_memfile.display_view(self.bigcanvas.bigframe)
+        self.load_splash("BigMatch data dictionary manager")    #dictionary for " + which_name)
+        self.datadictobj.display_view(self.bigcanvas.bigframe)
         return True
         
     def load_recfile_datadict(self, datadict_filename=""):
@@ -266,13 +268,8 @@ class BigMatchController():
         #    self.datadictobj_memfile.datadict_filename = datadict_filename
         result = self.load_datadict("mem", datadict_filename)
         return result
-
-    def show_datadict_buttons(self):
-        self.button_frame = Frame(self.bigcanvas.bigframe)
-        stackslot = self.bigcanvas.bigframe.get_widget_position(button_frame, "Data dictionary called from Main")
-        button_frame.grid(row=stackslot, column=0, sticky=W)
-        button_frame.config(background=self.bigcanvas.bigframe.bgcolor)
-
+    '''
+	
     def load_blocking_passes(self):
         self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
         self.load_splash("Chapin Hall's BigMatch user interface -- define blocking passes")
@@ -292,6 +289,16 @@ class BigMatchController():
         #self.matchreview_model.display_view(self.bigcanvas.bigframe)
         self.matchreview_model.display_views(self.bigcanvas.bigframe, 1)
 
+    def load_error_display(self):
+        print("In main.load_error_display()")
+        self.bigcanvas.bigframe.clear_canvas()          #Unload (hide) all frame objects
+        self.load_splash("BigMatch utilities - error report")
+        if not self.error_list:
+            self.error_list = ["Unspecified error (main)"]
+        self.error_ui = Error_UI_Model(self.parent_window, self, self.error_list)
+        self.error_ui.display_views(self.bigcanvas.bigframe, len(self.error_list))
+        print("\n\nBack in MAIN.PY after error was displayed. \n\n")
+        
     '''def load_convert_file(self, source_format="sas", output_format="text"):
         print("\nIn MAIN, load_convert_file() with source %s and output %s" % (source_format, output_format) ) 
         self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
@@ -342,14 +349,10 @@ class BigMatchController():
         This is used when the user switches between Data Dictionary and Blocking Pass screens, or similar switch.'''
         self.bigcanvas.bigframe.clear_canvas()
 
-    def handle_error(self, error_message='Error. Program cancelled.'):
-        self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
-        self.common.handle_error(self.error_message, False, False, "datadict")
-
     def refresh_main_canvas(self):
         self.bigcanvas.bigframe.update_idletasks()
         self.bigcanvas.update_idletasks()
-        self.bigcanvas.config(scrollregion=self.bigcanvas.bbox(ALL))				#Canvas object needs to encompass new items
+        self.bigcanvas.config(scrollregion=self.bigcanvas.bbox(ALL))				             #Canvas object needs to encompass new items
 
     def set_startup_module_to_blocking_pass(self):
         self.user.write_setting_to_config_file('cmd_onload', 'load_blocking_passes')
@@ -361,7 +364,7 @@ class BigMatchController():
         self.user.write_setting_to_config_file('cmd_onload', 'load_convert_file')
 
     def set_startup_module_to_data_dict(self):
-        self.user.write_setting_to_config_file('cmd_onload', 'load_recfile_datadict')
+        self.user.write_setting_to_config_file('cmd_onload', 'load_datadict')
 
     def startclean_new_datadict(self):
         self.clear_canvas()
@@ -371,19 +374,35 @@ class BigMatchController():
         self.clear_canvas()
         self.redisplay_module_after_error("blockingpass")
         
-    def redisplay_module_after_error(self, module_name="datadict"):
-        '''This might be done after an error, but it might be initiated by the user if they want to wipe out what they started, and start fresh. '''
+    def redisplay_module_after_error(self, module_name="errordisplay"):
+        '''Note: This function might be executed after an error, but it might be initiated by the user if they want to wipe out what they started, and start fresh. '''
         print("\n Back in main.py after error, calling module %s" % (module_name) )
-        if module_name.lower().strip() == "datadict":
-            self.load_recfile_datadict()
-        elif module_name.lower().strip() == "blockingpass":
+        if str(module_name).lower().strip() == "datadict":
+            self.load_datadict()
+        elif str(module_name).lower().strip() == "blockingpass":
             self.load_blocking_passes()
-        elif module_name.lower().strip() == "matchreview":
+        elif str(module_name).lower().strip() == "matchreview":
             self.load_match_review()
-        elif module_name.lower().strip() == "convertfile":
+        elif str(module_name).lower().strip() == "convertfile":
             self.load_convert_file()
+        elif str(module_name).lower().strip() == "errordisplay":
+            self.load_error_display()
         else:
-            self.load_recfile_datadict()
+            self.load_error_display()
+        print("\nEnd of Main.redisplay_module_after_error()")
+
+    def kill_module(self, module_name):
+        '''Set to nothing the object that is to be destroyed. This assumes that this BigMatch Controller holds the only reference to that object (which is most often the case)'''
+        print("\n Main.py kill_module(), killing module %s" % (module_name) )
+        if str(module_name).lower().strip() == "datadict":
+            self.datadict_model = None
+        elif str(module_name).lower().strip() == "blockingpass":
+            self.blockingpass_model = None
+        elif str(module_name).lower().strip() == "matchreview":
+            self.matchreview_model = None
+        elif str(module_name).lower().strip() == "convertfile":
+            self.convertfile_model = None
+        print("\nEnd of Main.kill_module()")
 
     def get_bigmatch_exe_location(self):
         if self.host_name.lower() == "pennhurst1.chapinhall.org":
@@ -406,6 +425,26 @@ class BigMatchController():
         print("\nReturning the string %s" % (cmd_string) )
         return cmd_string
 
+    def handle_error(self, error_message='Error. Procedure cancelled.', excp_type="", excp_value="", excp_traceback="", continue_after_error=False, abort_all=False, calling_object_name=None, module_to_reload_afterwards="errordisplay"):
+        print("\nTop of Main.handle_error(), error_message: %s, excp_type: %s, excp_value: %s, continue_after: %s" % (error_message, excp_type, excp_value, continue_after_error))
+        self.error_message = error_message
+        self.add_error_to_list(self.error_message, excp_type, excp_value, excp_traceback)
+        if self.logobject:
+            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message), True, True )   #Log this error in disk log and/or database
+        self.common.handle_error(self.error_message, excp_type, excp_value, excp_traceback, continue_after_error, abort_all)                           #To make the error handler more generic, place it in a lightweight common functions lib so that it can be called even when this BigMatch controller is not in use.
+        if abort_all:
+            sys.exit(1)                                  #Shut down the Python interpreter
+        if not continue_after_error:
+            if calling_object_name:                      #Whatever class/object called this error handler is unceremoniously dumped as a result
+                self.kill_module(calling_object_name)
+            self.clear_canvas()
+            self.redisplay_module_after_error(module_to_reload_afterwards)
+        print("\n\nEnd of Main.handle_error()")
+
+    def add_error_to_list(self, error_message="Unspecified error (in main)", excp_type="", excp_value="", excp_traceback=""):
+        errdict = {"error_message":error_message, "exc_type":excp_type, "exc_value":excp_value, "exc_traceback":excp_traceback}
+        self.error_list.append(errdict)
+        return len(self.error_list)
 		
 #******************************************************************************
 class ScrollCanvas(Canvas):
