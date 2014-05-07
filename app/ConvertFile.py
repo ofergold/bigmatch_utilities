@@ -9,11 +9,14 @@ import sys
 import csv
 import os 
 from os import path
-from Textfile import *
 from FilePath import *
 from CHLog import *
-head, tail = os.path.split(os.path.realpath(__file__))
-sys.path.append(os.path.join(head, "ch_lib", "sas7bdat_py3"))
+current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
+sys.path.append(os.path.join(current, "ch_lib", "sas7bdat_py3"))
+up_one, tail = os.path.split(current)                             #bigmatch
+up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
+sys.path.append(os.path.join(up_two, "etl", "python_common"))     #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+from Textfile import *
 import sas7bdat
 from sas7bdat import *
 
@@ -81,7 +84,7 @@ class ConvertFile_Model():
         print("\nSetting the output_format to: %s" % (output_format) )
 
     def convert_file(self, source_format=None, output_format=None):
-        '''Called after the user has selected a source file and an output file '''
+        '''Call either convert_sas_to_text() or convert_csv_to_text(). This function is called AFTER the user has selected a source file and an output file. '''
         if not source_format:
             source_format = self.source_format
         if not output_format:
@@ -116,7 +119,7 @@ class ConvertFile_Model():
         if datadict_file:
             print("\nIn ConvertFile, datadict_file is: %s" % (datadict_file) )
             #top_row_is_header = True                           #TO DO: allow user to check a checkbox indicating that the top CSV row contains column headers.  FOR NOW--If we have a Data Dictionary, then the assumption is that the columns have names. But this is not always the case. 
-        self.converter = TextFile(self.parent_window, self.controller)
+        self.converter = Textfile(self.parent_window, self.controller)
         print("\nAbout to convert CSV file '%s' to text file '%s'" % (source_file, output_file) )
         self.converter.convert_csv_to_flat_text(source_file, output_file, datadict_file, top_row_is_header)
 

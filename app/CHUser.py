@@ -34,10 +34,10 @@ class CHUser():
         self.stamp = str(now.year) + str(now.month) + str(now.day) + str(now.hour) + str(now.minute) + str(now.second)
         if not self.configfile_dir:
             head, tail = os.path.split(os.path.abspath(__file__))
-            self.configfile_dir = head
+            self.configfile_dir = os.path.join(head, "config")
         if not os.path.isdir(self.configfile_dir):
             os.mkdir(self.configfile_dir) 
-        self.configfile = os.path.join(self.configfile_dir, "config", "configfile_" + self.uid + ".txt")
+        self.configfile = os.path.join(self.configfile_dir, "configfile_" + self.uid + ".txt")
         print("\n dir: %s, configfile: %s" % (self.configfile_dir, self.configfile) )
         if not os.path.isfile(self.configfile):
             self.create_configfile()

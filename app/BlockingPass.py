@@ -695,7 +695,6 @@ class BlockingPass_Model():
                 f.close()
                 f = None
                 #Display a temporary message notifying the user that their file was created.
-                #self.hold_time = 
                 self.update_message_region("File has been saved")
         except:
             success = False
@@ -948,10 +947,10 @@ class BlockingPass_Model():
         msg = ""                       #Testing 123456789012345678901234567890123456789012345678901234567890"
         self.message_region = Message(self.button_frame, text=msg) #self.message_region = Label(self.button_frame, text=msg)
         self.message_region.grid(row=0, column=5, sticky=E)
-        kw = {"anchor":E, "width":800, "foreground":"dark green", "background":self.bgcolor, "borderwidth":1, "font":("Arial", 14, "bold"), "padx":8, "pady":3 }  
+        kw = {"anchor":E, "width":800, "foreground":"dark green", "background":self.bgcolor, "borderwidth":1, "font":("Arial", 12, "bold"), "padx":8, "pady":3 }  
         self.message_region.configure(**kw)
 
-    def update_message_region(self, text='', clear_after_ms=4000, **kw):
+    def update_message_region(self, text='', clear_after_ms=5000, **kw):
         #if not text:
         #    text = "Uh-oh"
         self.message_region.configure(text=text)
