@@ -59,7 +59,7 @@ class Error_UI_Model():
             self.bgcolor = gl_frame_color
         self.bgcolors = ["#FDFFDF", "#DFFFF0", "#FDFFDF", "#DFFFF0", "#FDFFDF", "#DFFFF0", "#FDFFDF", "#DFFFF0", "#FDFFDF", "#DFFFF0"]
         if self.error_message is not None:
-            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.logobject.logit("\nCalling handle_error with message '%s'" % (self.error_message) )
             return
     
         

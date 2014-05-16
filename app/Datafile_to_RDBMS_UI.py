@@ -12,8 +12,22 @@ from os import path
 from FilePath import *
 from DataDict import *
 from CHLog import *
-from Datafile_to_RDBMS import *
-
+#The following libraries are not within the BigMatch repo, so they might be left out of a BigMatch GUI installation or found in an unexpected place.
+current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
+up_one, tail = os.path.split(current)                             #bigmatch
+up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
+print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
+python_common_found = None
+if os.path.isdir(os.path.join(up_two, "common_functions", "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "common_functions", "python_common"))     #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Datadict_Common import *
+    from Datafile_to_RDBMS import *
+elif os.path.isdir(os.path.join(up_two, "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "python_common"))                   #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Datadict_Common import *
+    from Datafile_to_RDBMS import *
 gl_frame_color = "ivory"
 gl_frame_width = 400
 gl_frame_height = 100
@@ -21,7 +35,7 @@ gl_file_textbox_width = 80
 
 #******************************************************************************************
 class Datafile_to_RDBMS_UI_Model():
-    debug = True
+    debug = False
     error_message = None
     controller = None                       #Controller is the BigMatchController class in main.py 
     logobject = None                        #Instantiation of CHLog class
@@ -126,8 +140,8 @@ class Datafile_to_RDBMS_UI_Model():
         return self.view_object	
 
     def copy_datadict_to_class_properties(self):
-        datadict = DataDict_Model(self.parent_window, self.controller)   #BigMatch DataDict class
-        hdr_list = datadict.load_standard_datadict_headings()    #Make sure we are using the standard, updated list of column headings for the Data Dictionary
+        datadict = Datadict_Common()            #Standard DataDict class
+        hdr_list = datadict.load_standard_datadict_headings(["bigmatch"])            #Make sure we are using the standard, updated list of column headings for the Data Dictionary
         datadict = None                         #Erase the class instantiation when done to release memory
         #Check our assumptions about which Data Dictionary column headings are in the standard:		
         if not "column_name" in hdr_list:
@@ -152,16 +166,21 @@ class Datafile_to_RDBMS_UI_Model():
                 pos_colname = int(self.get_position_of_datadict_column("column_name"))
                 pos_width = int(self.get_position_of_datadict_column("width"))
                 pos_startpos = int(self.get_position_of_datadict_column("start_pos"))
+                if self.debug: print("\npos_colname=%s, pos_width=%s, pos_startpos=%s" % (pos_colname, pos_width, pos_startpos) )
                 count = 0
                 for row in csvreader:
                     #NOTE: CSV reader is a forward-only reader -- and it has already read row 0, the top row.  So now the next row WILL BE ROW 1!
                     #Add this column from the data dictionary to the list of columns that will be created in the RDBMS
-                    #self.logobject.logit("Dict row " + str(count) + ": " + row[0] + " " +row[1] + " " +row[2] + " " +row[3] + " " +row[4] + " " +row[5], True, True )
+                    #Determine whether this is a blank row in the file
+                    if self.row_is_empty(row):
+                        continue
+                    if self.debug: self.logobject.logit("Dict row " + str(count) + ": " + row[0] + ", " + row[1] + ", " + row[2], True, True, True )
                     self.converter.add_column(row[pos_colname], "char", row[pos_width], row[pos_startpos], "file")
                     count += 1
                 csvfile.close()
         except:
-            self.controller.common.handle_error(self.error_message, False, False, "datafile_rdbms_ui")   
+            self.controller.common.handle_error(self.error_message, False, False, "datafile_rdbms_ui") 
+            if self.debug: raise
 
     def get_position_of_datadict_column(self, which_column):
         which_column = which_column.lower().strip()
@@ -278,10 +297,19 @@ class Datafile_to_RDBMS_UI_Model():
         #print("Checking for key '%s' in **Kwargs -- Found? %s" % (str(keyvalue), str(found) ) ) 
         return found
 
+    def row_is_empty(self, row):
+        isempty = False
+        rowcheck = ','.join(row)
+        rowcheck = rowcheck.replace(",", "").replace("'", "").replace("\n", "").replace("?", "").strip()
+        #print("Rowcheck: %s" % (rowcheck))
+        if rowcheck == "":
+            #print("ROW IS EMPTY. SKIP IT.")
+            isempty = True
+        return isempty
 
 #******************************************************************************************
 class Datafile_to_RDBMS_UI_View(Frame):
-    debug = True
+    debug = False
     container = None
     #controller = None
     model = None
@@ -290,7 +318,8 @@ class Datafile_to_RDBMS_UI_View(Frame):
     def __init__(self, container, model):
         Frame.__init__(self, container)
         self.container = container
-        self.model = model		
+        self.model = model	
+        self.debug = self.model.debug		
         #self.controller = controller
         #ONLY ONCE AT INIT, display a blank list for now, knowing that it will be overwritten based on user actions.
         show_grid = False		

@@ -20,6 +20,32 @@ from CHLog import *
 from CHUser import *
 from CommonRL import *
 from Error_UI import *
+#The following libraries are not within the BigMatch repo, so they might be left out of a BigMatch GUI installation or found in an unexpected place.
+current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
+up_one, tail = os.path.split(current)                             #bigmatch
+up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
+print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
+python_common_found = None
+if os.path.isdir(os.path.join(up_two, "common_functions", "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "common_functions", "python_common"))     #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Textfile import *
+elif os.path.isdir(os.path.join(up_two, "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "python_common"))                   #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Textfile import *
+sas7bdat_found = None
+if os.path.isdir(os.path.join(current, "ch_lib", "sas7bdat_py3")):
+    sas7bdat_found = True
+    sys.path.append(os.path.join(current, "ch_lib", "sas7bdat_py3"))
+    import sas7bdat
+    from sas7bdat import *	
+sqlite_found = None
+try:
+    import sqlite3
+    sqlite_found = True
+except:
+    sqlite_found = False
 
 #*****************************************************************************************************************************************************************
 class BigMatchController():
@@ -33,6 +59,7 @@ class BigMatchController():
     #Objects that represent major functions of this application (Blocking Pass, Data Dictionary, etc.)
     blockingpass_model = None       
     blocking_passes = []			#Index of Blocking Pass objects that have been instantiated
+    how_many_blk_passes = 10
     matchreview_model = None
     error_ui = None            #Frame for displaying error information at runtime
     datadict_model = None
@@ -59,9 +86,14 @@ class BigMatchController():
     host_name = None
     bigmatch_exe_location = None
     enable_logging = None                    #Shut down logging until we solve permissions issues on Pennhurst server
+    enable_sqlite = None
+    sqlite_found = None
+    sas7bdat_found = None
+    python_common_found = None
     os_name = None
     os_platform = None
     os_release = None
+    uid = None
 	
     def __init__(self, parent_window):
         self.parent_window = parent_window
@@ -69,27 +101,35 @@ class BigMatchController():
         self.parent_window.columnconfigure(0, weight=0, pad=3)
         self.parent_window.rowconfigure(0, weight=0, pad=3)
         self.host_name = socket.gethostname()
+        self.uid = getpass.getuser().lower().strip()
         print("\n--------------------------------------------------------------------------------")
         print("\n STARTING NEW SESSION. hostname: %s, user: %s" % (self.host_name, getpass.getuser() ) )
         #Get operating system info
         self.os_name = os.name
         self.os_platform = platform.system()
         self.os_release = platform.release()
+        self.python_common_found = python_common_found
+        self.sas7bdat_found = sas7bdat_found
+        self.sqlite_found = sqlite_found
+        print("\nPython_common_found? %s" % (self.python_common_found) )
         print("\n os_name: %s, os_platform: %s, os_release: %s" % (self.os_name, self.os_platform, self.os_release) )
-        if self.host_name.upper().strip() == "CHRSD1-GSANDERS" and getpass.getuser().upper().strip() == "GSANDERS":
+        if self.host_name.upper().strip() == "CHRSD1-GSANDERS" and self.uid == "gsanders":
             self.enable_logging = True
-        elif self.host_name.upper().strip() == "GREGORY" and getpass.getuser().upper().strip() == "LISA":
+        elif self.host_name.upper().strip() == "GREGORY" and self.uid == "lisa":
             self.enable_logging = True
         if self.enable_logging:
+            #"Enable logging" does not mean the user has the necessary file/folder permissions. But from the BigMatch GUI standpoint, this user can write logs if the permissions are in place.
             print("Logging enabled (by user ID)")
-            #Make sure we can actually write to a file (permissions support logging)
-            self.logobject = CHLog(self.enable_logging, self.enable_logging)
+            #Make sure we can actually write to a file (file/folder permissions support logging)
+            self.logobject = CHLog(self.enable_logging, self.enable_logging)    
             logtest = self.logobject.test_subfolder_filewrite()
             print("Logging write test returned %s)" % (logtest) )
             self.enable_logging = logtest             #If test failed, set enable_logging to False
             if not self.enable_logging:
                 print("Logging write test failed")
                 self.logobject = None
+            if self.sqlite_found:
+                self.enable_sqlite = self.logobject.test_sqlite_data_write()
         if self.enable_logging:
             self.user = CHUser()
         self.common = CommonRL(self.parent_window, self)
@@ -140,15 +180,20 @@ class BigMatchController():
             print("\nReturning the string %s" % (cmd_string) )
             return cmd_string'''
 
-        convertMenu = Menu(menubar, tearoff=0)
-        convertMenu.add_command(label="Convert SAS file to text", command=self.load_convert_file_sas_to_text)
-        convertMenu.add_command(label="Convert CSV file to flat file", command=self.load_convert_file_csv_to_text)
-        convertMenu.add_command(label="Convert csv or flat file to sqlite table", command=self.load_convert_file_txt_to_sqlite)
-        menubar.add_cascade(label="Convert files", menu=convertMenu)
+        if self.python_common_found:
+            #if self.uid.find("sanders") > -1:
+            convertMenu = Menu(menubar, tearoff=0)
+            if sas7bdat_found:
+                convertMenu.add_command(label="Convert SAS file to text", command=self.load_convert_file_sas_to_text)
+            convertMenu.add_command(label="Convert CSV file to flat file", command=self.load_convert_file_csv_to_text)
+            convertMenu.add_command(label="Convert csv or flat file to sqlite table", command=self.load_convert_file_txt_to_sqlite)
+            menubar.add_cascade(label="Convert files", menu=convertMenu)
 
-        dbMenu = Menu(menubar, tearoff=0)
-        dbMenu.add_command(label="Display Sqlite data", command=self.display_sqlite_data)
-        menubar.add_cascade(label="Read database", menu=dbMenu)
+        if self.sqlite_found:
+            #if self.uid.find("sanders") > -1:
+            dbMenu = Menu(menubar, tearoff=0)
+            dbMenu.add_command(label="Display Sqlite data", command=self.display_sqlite_data)
+            menubar.add_cascade(label="Read database", menu=dbMenu)
 
         if self.enable_logging:
             defltMenu = Menu(menubar, tearoff=0)
@@ -178,7 +223,7 @@ class BigMatchController():
         #otherMenu.add_command(label="Clear display", command=self.bigcanvas.bigframe.clear_canvas)
         #otherMenu.add_command(label="Restore display", command=self.bigcanvas.bigframe.clear_canvas)
         #menubar.add_cascade(label="Clear", menu=otherMenu)
-                
+
         #End of MENU OPTIONS
         #*************************************************************        
         #Load the user's preferred start-up module:
@@ -191,7 +236,7 @@ class BigMatchController():
             elif setting.lower().strip() == "load_match_review":
                 self.load_match_review()
             elif setting.lower().strip() == "load_convert_file":
-                self.load_convert_file()
+                self.load_convert_file_csv_to_text()
             else:
                 self.load_datadict()
         else:
@@ -274,13 +319,14 @@ class BigMatchController():
         self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
         self.load_splash("Chapin Hall's BigMatch user interface -- define blocking passes")
         self.blockingpass_model = BlockingPass_Model(self.parent_window, self)
-        self.blockingpass_model.display_views(self.bigcanvas.bigframe, 6)
+        self.blockingpass_model.display_views(self.bigcanvas.bigframe, self.how_many_blk_passes)
 
-    def load_blocking_pass_from_parmfile(self):
+    '''def load_blocking_pass_from_parmfile(self):
         parmfile = os.path.join('C:\Greg', 'code', 'bigmatch_utilities', 'BigMatchGui', 'parmf.txt')
         parmfileobj = BigmatchParmfile(parmfile)
         for parm in parmfileobj.parms:
             print("PARMFILE PARM: blkpass: %s, row_index: %s, row_type: %s, parms in row: %s, parm_index: %s, parm_type: %s, parm_value: %s" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"] ) )
+    '''
 
     def load_match_review(self):
         self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
@@ -361,7 +407,7 @@ class BigMatchController():
         self.user.write_setting_to_config_file('cmd_onload', 'load_match_review')
 
     def set_startup_module_to_file_convert(self):
-        self.user.write_setting_to_config_file('cmd_onload', 'load_convert_file')
+        self.user.write_setting_to_config_file('cmd_onload', 'load_convert_file_csv_to_text')
 
     def set_startup_module_to_data_dict(self):
         self.user.write_setting_to_config_file('cmd_onload', 'load_datadict')
@@ -384,7 +430,7 @@ class BigMatchController():
         elif str(module_name).lower().strip() == "matchreview":
             self.load_match_review()
         elif str(module_name).lower().strip() == "convertfile":
-            self.load_convert_file()
+            self.load_convert_file_csv_to_text()
         elif str(module_name).lower().strip() == "errordisplay":
             self.load_error_display()
         else:
@@ -430,7 +476,7 @@ class BigMatchController():
         self.error_message = error_message
         self.add_error_to_list(self.error_message, excp_type, excp_value, excp_traceback)
         if self.logobject:
-            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message), True, True )   #Log this error in disk log and/or database
+            self.logobject.logit("\nCalling Common.handle_error with message '%s'" % (self.error_message), True, True )   #Log this error in disk log and/or database
         self.common.handle_error(self.error_message, excp_type, excp_value, excp_traceback, continue_after_error, abort_all)                           #To make the error handler more generic, place it in a lightweight common functions lib so that it can be called even when this BigMatch controller is not in use.
         if abort_all:
             sys.exit(1)                                  #Shut down the Python interpreter
@@ -445,7 +491,7 @@ class BigMatchController():
         errdict = {"error_message":error_message, "exc_type":excp_type, "exc_value":excp_value, "exc_traceback":excp_traceback}
         self.error_list.append(errdict)
         return len(self.error_list)
-		
+
 #******************************************************************************
 class ScrollCanvas(Canvas):
     debug = True                        #If debug=True, then output is sent to the Python command window for debugging.

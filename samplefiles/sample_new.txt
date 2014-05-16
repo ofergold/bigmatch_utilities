@@ -1,0 +1,34 @@
+HENRY                 FORD       W       M 19710510 
+MOLLY                 PITCHER    W       F 17541013 
+CESAR                 CHAVEZ     H       M 19661114 
+ROBERTO     CLEMENTE  WALKER     H       M 19710918 
+RALPH       WALDO     ELLISON    B       M 19890328 
+ELLA        JANE      FITZGERALD         B F        
+LOUIS                 ARMSTRONG  B       M 19710518 
+BARACK      HUSSEIN   OBAMA      B       M 19660921 
+MICHELLE    LAVAUGHN  OBAMA      B       F 19710703 
+JACKIE      ROOSEVELT ROBINSON   B       M 19710817 
+CARLOS                SANTANA    H       M 19470720 
+CHRISTINA             AGUILERA   H       F 19710319 
+SONIA       MARIA     SOTOMAYOR  H       F 19540625 
+HAROLD      LEE       WASHINGTON B       M 19220415 
+THURGOOD              MARSHALL   B       M 19661010 
+THEODORE              ROOSEVELT  W       M 19710217 
+GEORGE                WASHINGTON W       M 17320222 
+NEIL        ALDEN     ARMSTRONG  W       M 19300806 
+MARTIN      LUTHER    KING       B       M 19710122 
+JESSE       LOUIS     JACKSON    B       M 19730117 
+BRUCE                 LEE        A       M 19660405 
+COLIN                 POWELL     B       M 19661112 
+CONDOLEEZZA           RICE       B       F 19710222 
+NAT         KING      COLE       B       M 19721228 
+DESI                  ARNAZ      H       M 19720920 
+LUCILLE     DESIREE   BALL       W       F 19721101 
+JONATHAN              HARSHMAN   WINTERS W M        
+JOAN        CHANDOS   BAEZ       H       F 19410109 
+CHARLES     WADE      BARKLEY    B       M 19711116 
+RICHARD               WRIGHT     B       M 19881111 
+RICHARD               PRYOR      B       M 19720803 
+HARRY                 BELAFONTE  H       M 19770627 
+FREDERICK             DOUGLAS    B       M 19810429 
+GEORGE                BURNS      W       M 19720706 

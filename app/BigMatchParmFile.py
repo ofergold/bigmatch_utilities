@@ -166,7 +166,7 @@ class BigmatchParmfile():
         #print("\n In function Situate(), number of blocking passes so far is: %s" % (len(self.blocking_passes)) )
         found = False
         for blkpass in self.blocking_passes:
-            print("\n In Situate(), now on blocking pass %s, which has startrow %s and endrow %s" % (blkpass.blkpass_index, blkpass.startrow, blkpass.endrow) )
+            if self.debug: print("\n In Situate(), now on blocking pass %s, which has startrow %s and endrow %s" % (blkpass.blkpass_index, blkpass.startrow, blkpass.endrow) )
             if self.row_index >= blkpass.startrow and self.row_index <= blkpass.endrow:         #This row falls within the current Blocking Pass section of the text file
                 print("ROW %s IS WITHIN BOUNDS FOR BlockingPass %s" % (self.row_index, blkpass.blkpass_index) )
                 rowattribs["blocking_pass"] = blkpass.blkpass_index
@@ -244,7 +244,7 @@ class BigmatchParmfile():
             #The following works, but has only simple values for parameters (does not store parameter name)
             for parmrow in blkpass.parm_rows:
                 #THIS WORKS OKAY: 
-                print("\n ~~File row %s, BlkPass: %s, BlkPass row: %s -- row_type: %s, parm_values: %s" % (parmrow.row_index, parmrow.blocking_pass, parmrow.blkpass_row_index, parmrow.row_type, parmrow.parm_values) )
+                if self.debug: print("\n ~~ParmF File row %s, BlkPass: %s, BlkPass row: %s -- row_type: %s, parm_values: %s" % (parmrow.row_index, parmrow.blocking_pass, parmrow.blkpass_row_index, parmrow.row_type, parmrow.parm_values) )
                 #All of the lists of objects (even lists of dicts) seem to include all elements added to ALL instances of the class.  
                 #But primitive types (strings, ints), and lists of primitive types seem to be fine.
                 #print(" ~- Parms for row %s:" % (parmrow.row_index) )

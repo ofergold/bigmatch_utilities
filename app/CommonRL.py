@@ -14,12 +14,13 @@ from CHLog import *
 
 #******************************************************************************
 class CommonRL():
-    debug = True
+    debug = False
     error_message = None
     parent_window = None                    #Parent_window is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
     logobject = None                        #Instantiation of CHLog class
     user_response = None
+    datetime_str = None
 	
 
     def __init__(self, parent_window, controller):
@@ -27,15 +28,24 @@ class CommonRL():
         self.controller = controller		#Controller is the BigMatchController class in main.py 
         self.logobject = CHLog(self.controller.enable_logging)
         self.logobject.logit("\nIn CommonRL._init_", True, True )
-
+        
     def handle_error(self, error_message="Unspecified Error", excp_type="", excp_value="", excp_traceback=None, continue_after_error=False, abort_all=False):
         print("\nIn CommonRL.handle_error(), message is '%s' abort_all='%s', continue_after_error='%s'. Type of logobject is %s" % (error_message, abort_all, continue_after_error, type(self.logobject)) )
         self.error_message = error_message
+        #Date/time info
+        now = datetime.datetime.now()
+        self.datetime_str = str(now.year) + "-" + str(now.month) + "-" + str(now.day) + " " + str(now.hour) + ":" + str(now.minute)  #+ str(now.second)
         if self.logobject:
-            print("\nIn CommonRL.handle_error(), about to call logobject with message '%s'" % (error_message) )
             to_browser=False
             to_console = to_logfile = to_db = message_is_error = True
-            self.logobject.logit(error_message, to_console, to_logfile, to_db, to_browser, message_is_error)     #Log this error in disk log and/or database
+            print("\nIn CommonRL.handle_error(), about to call logobject with message '%s', excp_type: %s, excp_value: %s, type of traceback is %s" % (error_message, excp_type, excp_value, type(excp_traceback)) )
+            self.logobject.logit("\n##############################" + "\nERROR " + str(self.datetime_str), to_console, to_logfile, to_db, to_browser, message_is_error)
+            self.logobject.logit(str(error_message), to_console, to_logfile, to_db, to_browser, message_is_error)     #Log this error in disk log and/or database
+            self.logobject.logit(str(excp_type), to_console, to_logfile, to_db, to_browser, message_is_error)     #Log this error in disk log and/or database
+            self.logobject.logit(str(excp_value), to_console, to_logfile, to_db, to_browser, message_is_error)     #Log this error in disk log and/or database
+            typ = str(type(excp_traceback)).lower().replace("<class '", "").replace("'>", "")
+            if typ == "traceback":
+                self.logobject.logit("Error Line: " + str(excp_traceback.tb_lineno), to_console, to_logfile, to_db, to_browser, message_is_error)     #Log this error in disk log and/or database
         title = "Warning"
         if abort_all:
             title = "Error"

@@ -19,9 +19,12 @@ gl_frame_height = 100
 
 #******************************************************************************
 class MatchReview_Model():
-    ''' Display a standard BigMatch result file for the user, so that potential matches can be assessed and either accepted or rejected.
-    The logic of displaying these pairs falls to the View class (see below, class MatchReview_View())'''
-    debug = True
+    '''Display a standard BigMatch result file for the user, so that potential matches can be assessed and either accepted or rejected.
+    The logic of displaying these pairs falls to the View class (see below, class MatchReview_View())
+    first, all values form the BigMatch result file (which can have 100,000+ rows in some cases) are loaded into self.meta_values.
+    But we display only 30 rows at a time on screen. The user can scroll from page to page, looking for the cutoff between acceptable and non-acceptable matches.
+    '''
+    debug = False
     error_message = None
     parent_window = None                    #Parent_window is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
@@ -163,7 +166,7 @@ class MatchReview_Model():
                         print("Exact match: %s -|- %s" % (recmatches, memmatches) ) 
                         exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(maxlen+10), " | ", id_mem, memmatches.ljust(maxlen+10)) )
                     else:                 #NOT exact matches - store these in the meta_values array
-                        #print("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches) )
+                        if self.debug: print("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches) )
                         #Populate the meta_values array (list of lists) that will be used to populate the Entry Grid
                         meta_temp = [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid]     #meta_temp is a LIST consisting of one row from the Review File
                         self.meta_values.append(meta_temp)		          #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.\
@@ -176,7 +179,7 @@ class MatchReview_Model():
                 exactfile.close()
             matchfile.close()
         self.matchfile_rows = count
-        self.logobject.logit("\n At end of split_result_file(), meta_values has %s rows, and the matchfile has %s rows." % (len(self.meta_values) , self.matchfile_rows), True, True )  
+        self.logobject.logit("\n At end of split_result_file(), meta_values has %s rows, and the matchfile has %s rows." % (len(self.meta_values) , self.matchfile_rows), True, True, True )  
         self.sort_list()
 
     '''def init_grid_arrays(self):
@@ -193,13 +196,13 @@ class MatchReview_Model():
         with open(self.matchreview_file_to_save_to, "w") as f: 
             i = 0
             chkvalue = ""
-            for item in self.meta_values:
+            for item in self.meta_values:                       #meta_values is a list of dicts storing the content from the two files that were matched (components: blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid)
                 meta_rowid = item[6]                            #item[6] is "meta_rowid"
-                for control in self.controls:
+                for control in self.controls:                   #self.controls is a list of the screen controls
                     #print("Seeking meta_rowid %s, found %s... type: %s" % (meta_rowid, control.meta_rowid, str(control.control_type).lower().strip()) )
                     if control.meta_rowid == meta_rowid and str(control.control_type).lower().strip()=="checkbox":
                         chkvalue = control.value_object.get()
-                        print("Checkbox with meta_rowid %s and weight %s has value: %s" % (control.meta_rowid, item[1], chkvalue) )
+                        if self.debug: print("Checkbox with meta_rowid %s and weight %s has value: %s" % (control.meta_rowid, item[1], chkvalue) )
                         break
                 if str(chkvalue) == "1":
                     f.write("%s %s %s %s \n" % (item[0], item[1], item[2], item[3] ) )
@@ -288,13 +291,25 @@ class MatchReview_Model():
         self.lblAcceptAbove.grid(row=0, column=4, sticky=W) 
         self.lblAcceptAbove.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=11, anchor=E, padx=4, pady=1)
 		
-        self.spinvar = StringVar(self.button_frame)
-        self.spinvar.set(9)
+        '''self.accept_threshold = StringVar(self.button_frame)
+        self.accept_threshold.set(10)
         spn = Spinbox(self.button_frame, from_=0, to=30)
         spn.grid(row=0, column=5, sticky=W)
-        spn.config(textvariable=self.spinvar, background=self.bgcolor, width=5)
+        spn.config(textvariable=self.accept_threshold, background=self.bgcolor, width=5)
         spn.bind(sequence="<FocusOut>", func=self.spinhandler)
-
+        spn.bind(sequence="<Return>", func=self.spinhandler)
+        spn.bind(sequence="<ButtonRelease-1>", func=self.spinhandler)
+        '''
+        self.accept_threshold = StringVar(self.button_frame)
+        self.accept_threshold.set(10)
+        self.accept_threshold.trace("w", self.catch_threshold_change)
+        spn = Entry(self.button_frame)
+        spn.grid(row=0, column=5, sticky=W)
+        spn.config(textvariable=self.accept_threshold, background=self.bgcolor, width=5)
+        spn.bind(sequence="<FocusOut>", func=self.spinhandler)
+        spn.bind(sequence="<Return>", func=self.spinhandler)
+        spn.bind(sequence="<ButtonRelease-1>", func=self.spinhandler)
+        
         self.btnSaveToDictFile = Button(self.button_frame, text="Write accepted pairs to file", width=20, command=self.write_accepted_pairs)
         self.btnSaveToDictFile.grid(row=0, column=6, sticky=W)
         self.btnSaveToDictFile.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected a MatchResults file to save as
@@ -327,26 +342,43 @@ class MatchReview_Model():
         self.optSortBy.grid(row=0, column=3, sticky=W)
         self.optSortBy.config(font=('calibri',(9)), bg='light grey', width=18, padx=4, pady=1)
         self.optSortBy['menu'].config(background=self.bgcolor, font=("calibri",(11))) 
- 
-    def spinhandler(self, parm=None):
-        print("\n Spinner stringvar: %s, stringvar value: %s, parm: %s, widget: %s" % (self.spinvar, self.spinvar.get(), parm, parm.widget) )
+
+    def catch_threshold_change(self, val1=None, val2=None, val3=None, val4=None):
+        print("\n\nTHRESHOLD VAR CHANGED - parms are %s %s %s" % (val1, val2, val3) )
+        self.spinhandler()
+
+    def spinhandler(self, parm=None):    #, parm=None
+        '''Read the spinner value and check/un-check each ACCEPTANCE checkbox based on whether the associated MATCH WEIGHT is greater than or less than the spinner's user-entered value.
+        PARM is a multi-valued parameter submitted by the TKINTER spinner object thru its BIND event handlers. 
+        But we're more interested in the value of the STRINGVAR that was designated to hold the value of the Spinner widget. That Stringvar's value is retrieved via self.accept_threshold.get()'''
+        #self.logobject.logit("\n Spinner stringvar: %s, stringvar value: %s, parm: %s, widget: %s" % (self.accept_threshold, self.accept_threshold.get(), parm, parm.widget), True, True, True )
+        self.logobject.logit("\n Spinner stringvar: %s, stringvar value: %s" % (self.accept_threshold, self.accept_threshold.get()), True, True, True )
         if not self.controls or not self.meta_values:
             return
+        spinnerval = 0
+        if self.accept_threshold.get():
+            spinnerval = float(self.accept_threshold.get())
         i = 0
-        for item in self.meta_values:
-            print("Is %s greater than %s? %s" % (item[1], self.spinvar.get(),  (float(item[1]) >= float(self.spinvar.get())) ) )
-            if float(item[1]) >= float(self.spinvar.get()):     #item[1] is "weight"
-                meta_rowid = item[6]                            #item[6] is "meta_rowid"
-                for control in self.controls:
-                    #print("Seeking meta_rowid %s, found %s... type: %s" % (meta_rowid, control.meta_rowid, str(control.control_type).lower().strip()) )
-                    if control.meta_rowid == meta_rowid and str(control.control_type).lower().strip()=="checkbox":
-                        print("SELECTing the checkbox with meta_rowid %s" % (control.meta_rowid) )
-                        control.object.select()      #Check the checkbutton object
-                        break
-                
+        for control in self.controls:
+            #if self.debug: self.logobject.logit("Is %s greater than %s? %s" % (item[1], spinnerval,  (float(item[1]) >= spinnerval) ), True, True, True )
+            typ = str(control.control_type).lower().strip()
+            if typ == "checkbox":
+                #First, un-check every checkbox regardless of its weight. This is because at the end of the list rows that are no longer populated do not hit the meta_values loop below, and might leave checked boxes on now-empty rows.
+                control.value_object.set("")    #Uncheck the checkbox
+                control.object.deselect()       #Uncheck the checkbox
+                meta_rowid = control.meta_rowid
+                for item in self.meta_values:
+                    #if self.debug: self.logobject.logit("Seeking meta_rowid %s, found %s" % (meta_rowid, item[6] ), True, True, True )
+                    if item[6] == meta_rowid:                   #Found the META_VALUES row corresponding to this control's META_ROWID
+                        if float(item[1]) >= spinnerval:        #item[1] is "weight" - the match probability as estimated by BigMatch. The user wants to acccept every row with a weight greater than N.
+                            #if self.debug: self.logobject.logit("SELECTing the checkbox with meta_rowid %s, row_index %s, gridrow %s, weight %s" % (control.meta_rowid, control.row_index, control.gridrow, item[1] ), True, True, True )
+                            control.object.select()             #Check the checkbutton object
+                            break
+                        else:                                               #This item's WEIGHT (item[1]) falls below the user-entered cutoff (set by the spinner) for ACCEPTANCE.
+                            #if self.debug: print("DE-Selecting the checkbox with meta_rowid %s" % (control.meta_rowid), True, True, True )
+                            control.object.deselect()           #UN-Check the checkbutton object
+                            break
             i += 1
-        #self.view_object.start_row = 0
-        #self.view_object.repopulate_grid()
         self.view_object.container.refresh_canvas()
 
     def change_sort_column(self, var):
@@ -370,7 +402,7 @@ class MatchReview_Model():
                 self.load_single_file()                       #Refresh the view when the user selects (loads) a new file.
             else:                                             #No file was specified (user might have cleared out a previously selected file name) 
                 if self.view_object is not None:
-                    self.view_object.clear_grid()             #Remove all existing values from the grid'''
+                    self.view_object.clear_grid()             #Remove all existing values from the grid
         elif callback_string.lower().strip()[:4] == "save":   #This is a file SAVE AS, not a FILE OPEN
             self.matchreview_file_to_save_to = file_name_with_path
 
@@ -662,7 +694,7 @@ class MatchReview_Model():
         i = 0
         print("self.controls:")
         for control in self.controls:
-            print("%s) Row: %s, Col: %s, Name: %s, Type: %s" % ( i, control.row, control.col, control.ref_name, control.control_type ))
+            print("%s) Row: %s, Col: %s, Name: %s, Type: %s" % ( i, control.row_index, control.col, control.ref_name, control.control_type ))
             i += 1
 
     def check_key_exists(self, keyvalue, **kw):
@@ -679,9 +711,10 @@ class MatchReview_Model():
 # NEW CLASS SECTION
 #******************************************************************************
 class MatchReview_View(Frame):
-    debug = True
+    debug = False
     container = None
     model = None
+    logobject = None
     widgetstack_counter = None
     bgcolors = []
     bgcolor = None	
@@ -692,9 +725,12 @@ class MatchReview_View(Frame):
     rows_to_display = 30
     start_row = 0
     grid_initialized = False
+    vert_position_of_1st_gridrow = None   #The Tkinter grid row of the first Match Values Comparison row (which is needed every time we re-render the comparison values)
     pass_index = 0
     meta_rowid = None       #Meta_rowid is a unique identifier (autonum) for each row of self.meta_values, the main array.  It is stored in column 4 (fifth column) in the list.
-	
+    kw_fresult = {}         #Configuration for the frames that display comparison values
+    resultrow_frames_initialized = None
+
     def __init__(self, container, model=None, pass_index=None, show_view=None):
         Frame.__init__(self, container)
         if container:
@@ -702,6 +738,8 @@ class MatchReview_View(Frame):
         if model is None:
             model = BlockingPass_Model()				#Normally this VIEW object will be called by an already-instantiated MODEL object.  But this line is there to catch any direct instantiations of the VIEW.		
         self.model = model                              #Instance of the MatchReview_Model class (see aboove) 
+        self.debug = self.model.debug
+        self.logobject = self.model.logobject
         self.pass_index = pass_index                    #Typically we display 6 or 7 blocking pass views on the screen at one time. The blockpassview_index is a counter (index) for these different views.
         self.show_view = show_view
         #Display the frame:
@@ -748,6 +786,9 @@ class MatchReview_View(Frame):
         #***********************************************************************
         #Display the first page of results:  
         self.display_review_page(0)
+        #***********************************************************************
+        #for control in self.model.controls:      #DEBUG CHECK THE CONTROLS LIST
+        #    if self.debug: self.model.logobject.logit("Control-- Gridrow: %s Row: %s OR %s, Col: %s, meta_rowid: %s, control_type %s, ref_name=%s, Current value: %s, " % (control.gridrow, control.row_index, control.control_index, control.col, control.meta_rowid, control.control_type, control.ref_name, control.value_object.get() ), True, True, True )
 		
     def display_review_page(self, start_row=None):
         #*************************************
@@ -761,23 +802,25 @@ class MatchReview_View(Frame):
         self.row_index = 0				
         curvalue = 0 
         data_column_name = ""
-        chk_kw = {"width":6, "borderwidth":1, "font_size":11, "rowindex":self.row_index, "text":data_column_name}
+        chk_kw = {"width":6, "borderwidth":1, "font_size":11, "text":data_column_name}
         kw_txtbox = {"width":20, "background":self.bgcolor, "foreground":"black", "borderwidth":1, "font":("Arial", 10, "normal")}  #, "data_column_name":data_column_name, "text":data_column_name}
         vert_position = self.get_widgetstack_counter()
+        self.vert_position_of_1st_gridrow = vert_position
         self.rowtype = "matchreview"         #Each row in the CONTROLS list must be stamped with its row type (e.g., "blocking_fields", "matching_fields", etc.
         ix = 0                               #index of the current row
         countrow = 0                         #count the number of rows displayed
         holdweight = holdpass = ""
         bgcolor = "light grey"		
         weight_color = "dark slate blue"
-        for item in self.model.meta_values:
-            if ix >= self.start_row and countrow <= self.rows_to_display:
-                self.meta_rowid = item[6]
+        for item in self.model.meta_values:  #The entire contents of the BigMatch result file is loaded into self.model.meta_values. Display only 30 at a time. 
+            if ix >= self.start_row and countrow < self.rows_to_display:
+                self.meta_rowid = item[6]    #The Row index number of the current row in meta_values
                 self.model.logobject.logit("\nRow %s is between %s and %s so it will be displayed. Meta_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.meta_rowid ), True, True )
                 vert_position = self.get_widgetstack_counter()
                 label_text = ""
                 #(1) Checkbox to indicate that this field should be accepted as a match:
                 gridcolumn = 0
+                curvalue = 0
                 chk = self.create_checkbox("", vert_position, gridcolumn, curvalue, "chkaccept_" + self.rowtype[:2], **chk_kw)
                 #(2) Text box to display the Blocking Pass number that this row was generated by
                 gridcolumn = 1
@@ -825,10 +868,11 @@ class MatchReview_View(Frame):
                 control_name = "memfl_" + str(self.pass_index) + "_" + str(ix)
                 txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, self.rowtype, **kw_txtbox)
                 '''
-                self.recfile_values_for_current_row = str(item[2])        #This item from meta_values is a string of Matchnig Field values for the Record file
-                self.memfile_values_for_current_row = str(item[3])        #This item from meta_values is a string of Matchnig Field values for the Memory file
+                self.recfile_values_for_current_row = str(item[2])        #This item from meta_values is a string of Matching Field values for the Record file
+                self.memfile_values_for_current_row = str(item[3])        #This item from meta_values is a string of Matching Field values for the Memory file
                 #kw_fresult = {"background":self.bgcolor, "borderwidth":1, "height":1, "padx":4, "pady":2}              #, "data_column_name":data_column_name, "text":data_column_name, "font":("Arial", 10, "normal") }
-                kw_fresult = {"background":"yellow", "height":1, "borderwidth":1, "padx":4, "pady":2}              # " "data_column_name":data_column_name, "text":data_column_name, "font":("Arial", 10, "normal") }
+                self.kw_fresult = {"background":"yellow", "height":1, "borderwidth":1, "padx":4, "pady":2}              # " "data_column_name":data_column_name, "text":data_column_name, "font":("Arial", 10, "normal") }
+                kw_fresult = self.kw_fresult
                 #******************************************************************************
                 #Display the Record file and Memory file matching field values, side by side - Record values in one frame object, Memory values in a second frame object.
                 frame = self.create_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_fresult)             #RECORD FILE matching fields are contained in item[2]
@@ -881,34 +925,49 @@ class MatchReview_View(Frame):
         return weight_color
     
     def clear_grid(self):
+        '''The grid of checkboxes and textboxes is independent of the data values stored in meta_values. 
+        Each control is set up with a Tkinter StringVar to hold the current value of that control (text in a textbox, etc.) 
+        Each StringVar variable can be updated whenever the grid is refreshed.'''
         if self.model.controls:
             for control in self.model.controls:
                 col = control.col
-                row = control.row
-                control_type = str(control.control_type).lower().strip()				
-                #print("CLEARING: Col: %s Row: %s Type: %s" % ( str(control.col), str(control.row), control_type ) )
-                value = ""				
+                row = control.row_index
+                control_type = str(control.control_type).lower().strip()		
+                if self.debug: print("CLEARING: Col: %s Row: %s Type: %s" % ( str(control.col), str(control.row_index), control_type ) )
+                control.meta_rowid = None         #Important because if associated with a row in Meta_Values, this control will take on the ACCEPTED status of that row in Meta_Values -- if that Meta row has a weight above the current user-specified threshold, then the checkbox will remain checked even if all the controls' displays for this row have been set to blanks.
+                control.blocking_pass = ""				
+                value = ""
                 if control_type == "checkbox":
                     control.object.deselect()     #Un-check the checkbutton object
                 else:
                     value = control.value_object.get()
                     control.value_object.set('')
-                #print("CLEARED: Col: %s Row: %s Type: %s, Current control value: %s" % ( str(control.col), str(control.row), str(control.control_type), value ) ) 
-                control.object.grid(column=col, row=row)
+                #print("CLEARED: Col: %s Row: %s Type: %s, Current control value: %s" % ( str(control.col), str(control.row_index), str(control.control_type), value ) ) 
+                #control.object.grid(column=col, row=row)       #We don't need to re-create or re-position the control
+        #The actual comparison values to be reviewed are NOT included in self.model.controls, because they are complex frame objects different from simple text boxes.
+        for frame_and_its_labels in self.model.result_comparison_frames_in_grid:        #frame_and_its_labels = [frame, mem_or_rec, gridrow, gridcolumn, labels_and_stringvars_for_frame]
+            if self.debug: self.model.logobject.logit("In clear_grid, gridrow=%s, gridcolumn=%s, mem_or_rec=%s" % (frame_and_its_labels[2], frame_and_its_labels[3], frame_and_its_labels[1]), True, True, True )
+            for lblpair in frame_and_its_labels[4]:             #frame_and_its_labels[4] holds 10 Tkinter label objects plus the 10 StringVars that hold the labels' values
+                stringvar = lblpair[1]                          #lblpair[1] is the StringVar that holds the Label object's value
+                if lblpair[1].get():
+                    if self.debug: self.model.logobject.logit("In clear_grid, current label=%s, will be set to blank" % (lblpair[1].get()), True, True, True )
+                    stringvar.set("")
+        self.container.refresh_canvas()
 
-    def update_control_in_grid(self, row, col, newvalue, controltype=None, fontcolor=None):
-        #Find the correct element in self.controls where COL attribute = col, and the ROW attribute = row.
-        #print("Seeking row=%s and col=%s ... new value is %s" % (str(row), str(col), newvalue ) )
+    def update_control_in_grid(self, row, col, newvalue, meta_rowid, fontcolor=None, controltype=None):
+        #Find the correct element in self.controls where COL attribute = col, and the ROW_INDEX attribute = row.
+        #if self.debug: self.logobject.logit("In update_control_in_grid(), Seeking row=%s and col=%s ... new value is %s" % (str(row), str(col), newvalue ), True, True, True )
         found = False
         for control in self.model.controls:
             #When we find the correct Entry object in the self.controls list, update its value to reflect the newly-submitted meta_values.
-            #print("NEXT UP: COL: %s ROW: %s Current value: %s, New value: %s" % (str(control.col), str(control.row), str(control.value_object.get()), newvalue  ) )
-            if str(control.col) == str(col) and str(control.row) == str(row):
-                #print("FOUND: Col: %s Row: %s Current value: %s, New value: %s" % (str(control.col), str(control.row), str(control.value_object.get()), newvalue ) )
+            #if self.debug: self.model.logobject.logit("NEXT UP: ROW: %s, COL: %s, Current value: %s, New value: %s" % (control.row_index, control.col, control.value_object.get(), newvalue), True, True, True )
+            if str(control.col) == str(col) and str(control.row_index) == str(row):
+                if self.debug: self.model.logobject.logit("Control FOUND: Col: %s Row: %s Current value: %s, New value: %s" % (control.col, control.row_index, control.value_object.get(), newvalue), True, True, True )
+                control.meta_rowid = meta_rowid
                 control.value_object.set(newvalue)
-                control.object.grid(column=col, row=row)
-                control.object.config(foreground=fontcolor)
-                #print("AFTER: Col: %s Row: %s control value: %s" % (str(control.col), str(control.row), str(control.value_object.get())))
+                #control.object.grid(column=col, row=row)          #We don't need to re-create or re-position the control
+                control.object.config(foreground=fontcolor)       
+                if self.debug: self.model.logobject.logit("Control AFTER update: Col: %s Row: %s control value: %s" % (str(control.col), str(control.row_index), str(control.value_object.get())), True, True, True)
                 found = True
                 self.container.refresh_canvas()
                 break
@@ -926,13 +985,6 @@ class MatchReview_View(Frame):
         lbl.grid(row=gridrow, column=gridcolumn, sticky=W) 
         lbl.configure(**kw)
 
-    def create_textwidget(self, label_text, gridrow, gridcolumn, curvalue='', textbox_name='txt_unknown', data_column_name='', rowtype='unknown', **kw):       #gridcolumn=0, width=12, font_size=12, rowindex=0
-        textwidg = Text(self)
-        textwidg.grid(row=gridrow, column=gridcolumn, sticky=EW)
-        textwidg.insert(INSERT, curvalue)
-        textwidg.configure(foreground="blue")
-        textwidg.configure(**kw)
-
     def create_textbox(self, label_text, gridrow, gridcolumn, curvalue='', textbox_name='txt_unknown', data_column_name='', rowtype='unknown', **kw):       #gridcolumn=0, width=12, font_size=12, rowindex=0
         #print("Displaying textbox '%s' with value %s" % (label_text, curvalue) )
         if(label_text):                                         #Optionally, display a label to the left of the textbox
@@ -946,7 +998,7 @@ class MatchReview_View(Frame):
         entry.grid(row=gridrow, column=gridcolumn, sticky=EW)
         entry.configure(**kw)
         #Add this control to the controls collection:		
-        self.model.add_control_to_list(entry, var, blocking_pass=self.pass_index, ref_name=textbox_name, row_index=self.row_index, row=gridrow, col=gridcolumn, control_type="textbox", meta_rowid=self.meta_rowid)
+        self.model.add_control_to_list(entry, var, blocking_pass=self.pass_index, ref_name=textbox_name, row_index=self.row_index, gridrow=gridrow, col=gridcolumn, control_type="textbox", meta_rowid=self.meta_rowid)
 
     def create_checkbox(self, label_text, gridrow, gridcolumn, curvalue=0, chkbox_name='chk_unknown', **kw):       #gridcolumn=0, width=12, font_size=11, rowindex=0
         #print("\n About to display checkbox '" + label_text + "'")
@@ -959,36 +1011,7 @@ class MatchReview_View(Frame):
         chk.configure(background=self.bgcolor, font=("Arial", font_size, "bold"), borderwidth=2, width=chkwidth, anchor=W)
         chk.configure(state=NORMAL)
         #Add this control to the controls collection:		
-        self.model.add_control_to_list(chk, var, blocking_pass=self.pass_index, ref_name=chkbox_name, row_index=kw["rowindex"], row=gridrow, col=gridcolumn, control_type="checkbox", meta_rowid=self.meta_rowid)
-
-    def create_optmenu(self, value_list, curvalue='', optmenu_name='', **kw):     #gridrow=None, gridcolumn=1, width=12, rowindex=0
-        var = StringVar(self)
-        var.set(curvalue)
-        gridrow = gridcolumn = rowindex = 0
-        if self.model.check_key_exists("gridrow", **kw):
-            gridrow = kw["gridrow"] 
-        if self.model.check_key_exists("gridcolumn", **kw):
-            gridcolumn = kw["gridcolumn"] 
-        if self.model.check_key_exists("rowindex", **kw):
-            rowindex = kw["rowindex"]		
-        optmenu = OptionMenu(self, var, *value_list, command=lambda x:self.capture_menu_click(optmenu_name, var) )
-        optmenu.grid(column=gridcolumn, row=gridrow, sticky=W)                      #position the Frame within the container Window or Frame
-        optmenu.config(font=('calibri',(10)), bg='white', width=kw["width"])
-        optmenu['menu'].config(background=self.bgcolor, font=("calibri",(11)) )     #,bg='white'
-        #Add this control to the controls collection:		
-        self.model.add_control_to_list(optmenu, var, blocking_pass=self.pass_index, ref_name=optmenu_name, row_index=rowindex, row=gridrow, col=gridcolumn, control_type="optmenu", meta_rowid=self.meta_rowid)
-
-    def create_spinner(self, from_=0, to=20, value_tuple=(), spinner_name='', gridrow=None, gridcolumn=1, curvalue=1, **kw):
-        var = StringVar(self)
-        var.set(curvalue)
-        if value_tuple:
-            spn = Spinbox(self, values=value_tuple)
-        else:
-            spn = Spinbox(self, from_=from_, to=to)
-        spn.grid(row=gridrow, column=gridcolumn, sticky=W)
-        spn.config(textvariable=var, background=self.bgcolor, width=8)		
-        #Add this control to the controls collection:		
-        self.model.add_control_to_list(spn, var, blocking_pass=self.pass_index, ref_name=spinner_name, row_index=kw["rowindex"], row=gridrow, col=gridcolumn, control_type="optmenu", meta_rowid=self.meta_rowid)
+        self.model.add_control_to_list(chk, var, blocking_pass=self.pass_index, ref_name=chkbox_name, row_index=self.row_index, gridrow=gridrow, col=gridcolumn, control_type="checkbox", meta_rowid=self.meta_rowid)
 
     def create_resultrow_frame(self, matchvals_rec, matchvals_mem, mem_or_rec, gridrow, gridcolumn, **kw):
         '''Create and display a Tkinter frame object, populated with labels representing matching-field values for the user's clerical review process.
@@ -996,9 +1019,9 @@ class MatchReview_View(Frame):
         Pass both the RECORD and MEMORY matching fields values to this function, so that we can compare each segment of those values and highlight differences
         Note that this function creates and displays a single frame object, containing a string of matching-field values for EITHER the Record File or the Memory File. 
         This function will be called twice (Record File, then Memory File) for each row that is being displayed in the grid -- so once for every row in the specified number of rows per page.
-        List labels_and_stringvars[] stores label OBJECTS and the StringVar OBJECTS that store their values. This is so that the grid can be refreshed as often as needed. 
+        List labels_and_stringvars_for_frame[] stores label OBJECTS and the StringVar OBJECTS that store their values. This is so that the grid can be refreshed as often as needed. 
         We can't keep creating an infinite number of label objects, so we create them one time and update their StringVar values as often as needed.'''
-        self.model.logobject.logit("\n In create_resultrow_frame(), mem_or_rec: %s, matchvals_rec: %s, matchvals_mem: %s, gridcolumn: %s" % (mem_or_rec, matchvals_rec, matchvals_mem, gridcolumn), True, True )
+        if self. debug: self.model.logobject.logit("In create_resultrow_frame(), mem_or_rec: %s, matchvals_rec: %s, matchvals_mem: %s, gridcolumn: %s" % (mem_or_rec, matchvals_rec, matchvals_mem, gridcolumn), True, True, True )
         mem_or_rec = str(mem_or_rec).lower().strip()
         frame = Frame(self)
         frame.grid(row=gridrow, column=gridcolumn, sticky=EW)
@@ -1008,59 +1031,59 @@ class MatchReview_View(Frame):
         #    kw["width"] = 80
         frame.configure(**kw)
         frame.configure(width=80)
-        labels_and_stringvars = []        #List of labels that will be displayed within this frame, along with the StringVar variables to hold the values that are displayed in the labels.
+        labels_and_stringvars_for_frame = []        #List of labels that will be displayed within this frame, along with the StringVar variables to hold the values that are displayed in the labels.
         var0 = StringVar(self)
         var0.set("")
         lbl0 = Label(frame, textvariable=var0)
         lblpair_0 = [lbl0, var0]
-        labels_and_stringvars.append(lblpair_0)
+        labels_and_stringvars_for_frame.append(lblpair_0)
         var1 = StringVar(self)
         var1.set("")
         lbl1 = Label(frame, textvariable=var1)
         lblpair_1 = [lbl1, var1]
-        labels_and_stringvars.append(lblpair_1)
+        labels_and_stringvars_for_frame.append(lblpair_1)
         var2 = StringVar(self)
         var2.set("")
         lbl2 = Label(frame, textvariable=var2)
         lblpair_2 = [lbl2, var2]
-        labels_and_stringvars.append(lblpair_2)
+        labels_and_stringvars_for_frame.append(lblpair_2)
         var3 = StringVar(self)
         var3.set("")
         lbl3 = Label(frame, textvariable=var3)
         lblpair_3 = [lbl3, var3]
-        labels_and_stringvars.append(lblpair_3)
+        labels_and_stringvars_for_frame.append(lblpair_3)
         var4 = StringVar(self)
         var4.set("")
         lbl4 = Label(frame, textvariable=var4)
         lblpair_4 = [lbl4, var4]
-        labels_and_stringvars.append(lblpair_4)
+        labels_and_stringvars_for_frame.append(lblpair_4)
         var5 = StringVar(self)
         var5.set("")
         lbl5 = Label(frame, textvariable=var5)
         lblpair_5 = [lbl5, var5]
-        labels_and_stringvars.append(lblpair_5)
+        labels_and_stringvars_for_frame.append(lblpair_5)
         var6 = StringVar(self)
         var6.set("")
         lbl6 = Label(frame, textvariable=var6)
         lblpair_6 = [lbl6, var6]
-        labels_and_stringvars.append(lblpair_6)
+        labels_and_stringvars_for_frame.append(lblpair_6)
         var7 = StringVar(self)
         var7.set("")
         lbl7 = Label(frame, textvariable=var7)
         lblpair_7 = [lbl7, var7]
-        labels_and_stringvars.append(lblpair_7)
+        labels_and_stringvars_for_frame.append(lblpair_7)
         var8 = StringVar(self)
         var8.set("")
         lbl8 = Label(frame, textvariable=var8)
         lblpair_8 = [lbl8, var8]
-        labels_and_stringvars.append(lblpair_8)
+        labels_and_stringvars_for_frame.append(lblpair_8)
         var9 = StringVar(self)
         var9.set("")
         lbl9 = Label(frame, textvariable=var9)
         lblpair_9 = [lbl9, var9]
-        labels_and_stringvars.append(lblpair_9)
+        labels_and_stringvars_for_frame.append(lblpair_9)
         #Add a row to the result_comparison_frames_in_grid list. Each row consists of a single frame object and the StringVars and Label objects associated with that frame object.
-        frame_and_its_labels = [frame, mem_or_rec, gridrow, gridcolumn, labels_and_stringvars]    #lblpair_0, lblpair_1, lblpair_2, lblpair_3, lblpair_4, lblpair_5, lblpair_6, lblpair_7, lblpair_8, lblpair_9]
+        frame_and_its_labels = [frame, mem_or_rec, gridrow, gridcolumn, labels_and_stringvars_for_frame]    #lblpair_0, lblpair_1, lblpair_2, lblpair_3, lblpair_4, lblpair_5, lblpair_6, lblpair_7, lblpair_8, lblpair_9]
         framerow_index = len(self.model.result_comparison_frames_in_grid)                            #The frame will be added to this list soon
         #Configure each Label that was just added to the list.
         color = "black"
@@ -1080,6 +1103,7 @@ class MatchReview_View(Frame):
         self.model.result_comparison_frames_in_grid.append(frame_and_its_labels)     #A list of grid frames, each accompanied by its collection of text segments embedded in TKinter Label objects.
 		#Display this frame object in the grid:
         self.populate_resultrow_frame(matchvals_rec, matchvals_mem, mem_or_rec, gridrow, gridcolumn, **kw)          #Display the comparison values
+        self.resultrow_frames_initialized = True
         self.container.refresh_canvas()
 
     def populate_resultrow_frame(self, matchvals_rec, matchvals_mem, mem_or_rec, gridrow, gridcolumn, **kw):
@@ -1091,8 +1115,9 @@ class MatchReview_View(Frame):
         But for simplicity, this function needs to be generic enough to handle cases where the information is not known, aside from row and column indices in the master list of frames with their Label widgets.'''
         frmx = 0
         for frame_and_its_labels in self.model.result_comparison_frames_in_grid:
+            #if self.debug: self.logobject.logit("In populate_resultrow_frame(), seeking gridrow %s, found %s, seeking gridcolumn %s, found %s" % (gridrow, frame_and_its_labels[2], gridcolumn, frame_and_its_labels[3] ), True, True, True )
             if frame_and_its_labels[2] == gridrow and frame_and_its_labels[3] == gridcolumn:      #The row and column indices match - so we have found the correct Frame and its Labels.
-                #self.model.logobject.logit("\n In populate_resultrow_frame(), framerow (%s) mem_or_rec: %s, matchvals_rec: %s, matchvals_mem: %s, gridcolumn: %s" % (frmx, mem_or_rec, matchvals_rec, matchvals_mem, gridcolumn), True, True )
+                if self.debug: self.model.logobject.logit("In populate_resultrow_frame(), framerow (%s) mem_or_rec: '%s', matchvals_rec: '%s', matchvals_mem: '%s', gridcolumn: %s" % (frmx, mem_or_rec, matchvals_rec, matchvals_mem, gridcolumn), True, True, True )
                 matchsegs_rec = matchvals_rec.split(" ")
                 matchsegs_mem = matchvals_mem.split(" ")
                 max_num_segments = len(matchsegs_rec)
@@ -1102,9 +1127,9 @@ class MatchReview_View(Frame):
                 elif len(matchsegs_mem) > len(matchsegs_rec):
                     max_num_segments = len(matchsegs_mem)
                 #Item[0] is the Frame widget, item[1] is "mem_or_rec", item[2] is gridrow, item[3] is the gridcolumn, item[4] is the list of StringVars and associated Label widgets within the Frame.
-                #Item[4] is "labels_and_stringvars", a list of 10 lists, each having 2 elements: [0] is a Tkinter Label object and [1] is its associated StringVar to hold the label's text value.
+                #Item[4] is "labels_and_stringvars_for_frame", a list of 10 lists, each having 2 elements: [0] is a Tkinter Label object and [1] is its associated StringVar to hold the label's text value.
                 lblx = 0
-                for lbl_pair in frame_and_its_labels[4]:     #should be 10 label pairs per frame (each label pair is a Label object and its Stringvar object)
+                for lbl_pair in frame_and_its_labels[4]:         #should be 10 label pairs per frame (each label pair is a Label object and its Stringvar object)
                     #Debug - view all of this frame's child labels (which are stored in the list that appears in position 4 [5th item] in each row of result_comparison_frames_in_grid.
                     #self.model.logobject.logit("Framerow %s, segment %s). Type of frame-labels: %s. Type of frame-labels[0]: %s. Type of frame-labels[1]: %s. Type of frame-labels[2]: %s. Type of frame-labels[3]: %s. Type of frame-labels[4]: %s. Type of frame-labels[4][0]: %s. Type of frame-labels[4][1]: %s." % (frmx, lblx, type(frame_and_its_labels), type(frame_and_its_labels[0]), type(frame_and_its_labels[1]), type(frame_and_its_labels[2]), type(frame_and_its_labels[3]), type(frame_and_its_labels[4]), type(frame_and_its_labels[4][0]), type(frame_and_its_labels[4][1])  ), True, True )
                     #IMPORTANT! Set the StringVar value to nothing -- that is, erase existing values that were previously displayed in the label widget.
@@ -1163,20 +1188,25 @@ class MatchReview_View(Frame):
         weight_color = "dark slate blue"
         for item in self.model.meta_values:
             #self.model.logobject.logit("In Repopulate, row %s" % (ix), True, True )
-            if ix >= self.start_row and countrow <= self.rows_to_display:
-                self.recfile_values_for_current_row = ""
+            if ix >= self.start_row and countrow < self.rows_to_display:          #This row of meta_values falls within the start and end row for the chunk we are displaying.
+                #Memfile_values and Recfile_values are BOTH passed to the display function, because we need to compare them against each other to determine the colors to be used in displaying the values.
+                self.recfile_values_for_current_row = ""                           
                 self.memfile_values_for_current_row = ""
-                self.meta_rowid = item[6]
-                #self.model.logobject.logit("Repopulating: Row %s is between %s and %s so it will be displayed. Meta_rowid=%s" % (ix, self.start_row, ( int(self.start_row) + int(self.rows_to_display) ), self.meta_rowid ), True, True )
+                self.meta_rowid = item[6]              #RowId is the 7th item in the dict
+                if self.debug: self.model.logobject.logit("Repopulating: Row %s is between %s and %s so it will be displayed. Meta_rowid=%s, bp=%s, weight=%s, recvalues=%s, memvalues=%s" % (ix, self.start_row, ( int(self.start_row) + int(self.rows_to_display) ), self.meta_rowid, str(item[0]), str(item[1]), str(item[2]), str(item[3]) ), True, True, True )
                 #Checkbox:
                 col = 0
                 newvalue = 0                           #Un-check the boxes when we re-draw the page
+                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (chkbx) with row %s, col %s, newvalue %s" % (countrow, col, newvalue), True, True, True )
+                self.update_control_in_grid(countrow, col, newvalue, self.meta_rowid)
+				
                 #Blocking Pass:
                 col = 1
                 newvalue = str(item[0]).strip()        #Weights and unique IDs
                 #newvalue = newvalue.split(" ")[0]     #Just get the weight, discard the unique key values for now
                 #Find the correct element in self.controls where the COL attribute = col, and the ROW attribute = row.
-                self.update_control_in_grid(countrow, col, newvalue)
+                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (blkps) with row %s, col %s, newvalue %s" % (countrow, col, newvalue), True, True, True )
+                self.update_control_in_grid(countrow, col, newvalue, self.meta_rowid)
 				
                 #Weight:
                 col = 2
@@ -1185,48 +1215,35 @@ class MatchReview_View(Frame):
                     holdweight = newvalue
                 weight_color = self.get_weight_color(newvalue, holdweight)
                 #Find the correct element in self.controls where the COL attribute = col, and the ROW attribute = row.
-                self.update_control_in_grid(countrow, col, newvalue, weight_color)
+                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (weight) with row %s, col %s, newvalue %s" % (countrow, col, newvalue), True, True, True )
+                self.update_control_in_grid(countrow, col, newvalue, self.meta_rowid, weight_color)
 
                 #Text box to display the row number
                 col = 3
                 newvalue = str(ix)                     #Row number within the list (index)
                 #Find the correct element in self.controls where the COL attribute = col, and the ROW attribute = row.
-                self.update_control_in_grid(countrow, col, newvalue)
+                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (rownm) with row %s, col %s, newvalue %s" % (countrow, col, newvalue), True, True, True )
+                self.update_control_in_grid(countrow, col, newvalue, self.meta_rowid)
 				
-                #Record file match values:
-                col = 4
-                #newvalue = str(item[2])       #Record file match values
+                #*************************************************************************************************************                
+                #Re-render the comparison frames for the user to review.
+                ##DO NOT RE-CREATE THE FRAME OBJECTS EVERY TIME THE USER SCROLLS OR SORTS! that would create hundreds or thousands of frame objects as the user scrolls and sorts iteratively.
+                vert_position = countrow +3              #Column labels are at row 0, blank space at row 1 - so add 3 to the counter to assign vertical position for this grid display row.
+                kw_fresult = self.kw_fresult
+                #Re-display the Matching Field Values frame for the current row of meta_values
                 self.recfile_values_for_current_row = str(item[2])        #This item from meta_values is a string of Matching Field values for the Record file
-                #Find the correct element in self.controls where the COL attribute = col, and the ROW attribute = row.
-                self.update_control_in_grid(countrow, col, self.recfile_values_for_current_row, "recfile_values")
-				
-                #Memory file match values:
-                col = 5
-                #newvalue = str(item[3])       #Memory file match values
                 self.memfile_values_for_current_row = str(item[3])        #This item from meta_values is a string of Matching Field values for the Memory file
-                #Find the correct element in self.controls where the COL attribute = col, and the ROW attribute = row.
-                self.update_control_in_grid(countrow, col, self.memfile_values_for_current_row, "memfile_values")
-                
-                #Re-render the comparison frames for the user to review:
-                kw_result = {"background":self.bgcolor, "borderwidth":1, "height":1, "padx":4, "pady":2}   
-                vert_position = ix +3            #Column labels are at row 0, blank space at row 1 - so add 3 to the counter to assign vertical position for this grid display row.
-                gridcolumn = 4
-                ##DO NOT RE-CREATE THE FRAME OBJECTS EVERY TIME THE USER SCROLLS OR SORTS! 
-                ##frame = self.create_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_fresult)             #RECORD FILE matching fields are contained in item[2]
-                gridcolumn = 5
-                ##DO NOT RE-CREATE THE FRAME OBJECTS EVERY TIME THE USER SCROLLS OR SORTS! 
-                ##frame = self.create_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_fresult)             #MEMORY FILE matching fields are contained in item[3]
-                #Display the Record file and Memory file matching field values, side by side - Record values in one frame object, Memory values in a second frame object.
-                kw_fresult = {"background":self.bgcolor, "borderwidth":1, "height":1, "padx":4, "pady":2}              #, "data_column_name":data_column_name, "text":data_column_name, "font":("Arial", 10, "normal") }
-                #******************************************************************************************************************
-                #Re-display the Matching Field Values frame objects in the grid:
-                gridcolumn = 4				
+                gridcolumn = 4		
+                if self.debug: self.logobject.logit("Calling populate_resultrow_frame with 'rec', %s" % (self.recfile_values_for_current_row), True, True, True)
                 self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_fresult)          #Display the comparison values
                 gridcolumn = 5
+                self.logobject.logit("Calling populate_resultrow_frame with 'mem', %s" % (self.recfile_values_for_current_row), True, True, True)
                 self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_fresult)          #Display the comparison values
                 #******************************************************************************************************************
                 countrow += 1
             ix += 1
+        #Now that the grid has been cleared and re-displayed, we need to update the checkboxes to reflect the user's current weight threshold for acceptance - any weight above the specified threshold triggers a checkbox CHECKED. Below the threshold triggers a checkbox DESELECT.
+        self.model.spinhandler()
         #self.debug_display_arrays()
         self.container.refresh_canvas()
 
@@ -1257,9 +1274,9 @@ class Control():
     model = None           #MatchReview_Model object
     object = None          #The Tkinter object (textbox, checkbox, etc.)
     value_object = None    #A Tkinter StringVar() variable which holds the value of this object.
-    value = None           #Actual string value, accessed as StringVar().get()
-    row = None             #Position in the grid
-    col = None             #Position in the grid 
+    #value = None          #Actual string value, accessed as StringVar().get()
+    gridrow = None         #Position in the grid (controls start at row 3 because labels and other such things appear in grid rows 0,1,2)
+    col = None             #Horizontal position in the grid 
     blocking_pass = None   #
     row_index = None       #
     control_index = None   #
@@ -1272,10 +1289,10 @@ class Control():
         self.object = object     #Tkinter object
         self.value_object = var  #StringVar() object that holds the value of the Tkinter object
         self.control_index = control_index
-        if self.model.check_key_exists("value", **kw):
-            self.value = kw["value"]
-        if self.model.check_key_exists("row", **kw):
-            self.row = kw["row"]
+        #if self.model.check_key_exists("value", **kw):
+        #    self.value = kw["value"]
+        if self.model.check_key_exists("gridrow", **kw):
+            self.gridrow = kw["gridrow"]
         if self.model.check_key_exists("col", **kw):
             self.col = kw["col"]
         if self.model.check_key_exists("control_type", **kw):

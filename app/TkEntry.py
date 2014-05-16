@@ -38,6 +38,8 @@ class EntryWidget(Entry):
 
 class EntryGrid(Frame):
     ''' Dialog box with Entry widgets arranged in columns and rows.'''
+    debug = True
+    error_message = ""
     initialized = False	
     parent = None
     col_list = None
@@ -56,6 +58,7 @@ class EntryGrid(Frame):
     previous_row_count = None
     previous_column_count = None
     widget_type = None                #At any given time when the grid is being populated, widget_type tells us what kind of grid cell is currently being worked on (examples: 'row_labels' 'column_labels', 'entry')
+    #logobject = None
 
     def __init__(self, parent, col_list, row_list, values_list=[], show_grid=False, **kw):
         '''col_list is a list of column labels that are displayed along the top of the grid.
@@ -97,8 +100,9 @@ class EntryGrid(Frame):
         #print ("\n In TkEntry.initialize_grid(), ABOUT TO CALL Make_Header():  len(col_list)=" + str(len(self.col_list)) + ", len(row_list)=" + str(len(self.row_list)) + ", len(values_list)=" + str(len(self.values_list)) + "\n")
         #self.debug_display_arrays()
         self.make_header()
-        print ("\n In TkEntry.initialize_grid(), AFTER Make_Header, about to loop thru arrays: len(col_list)=" + str(len(self.col_list)) + ", len(row_list)=" + str(len(self.row_list)) + ", len(values_list)=" + str(len(self.values_list)) + "\n")
-        self.debug_display_arrays()
+        if self.debug:
+            print ("\n In TkEntry.initialize_grid(), AFTER Make_Header, about to loop thru arrays: len(col_list)=" + str(len(self.col_list)) + ", len(row_list)=" + str(len(self.row_list)) + ", len(values_list)=" + str(len(self.values_list)) + "\n")
+            self.debug_display_arrays()
         #Display in grid cells any values that were passed in as values_list[].
         self.grid_values = {}
         self.widget_type = "entry"
@@ -142,10 +146,10 @@ class EntryGrid(Frame):
 		#Note: the row_list contains one row for every CURRENTLY POPULATED row in the grid. But the user might populate additional rows, which will NOT be reflected in row_list (or any updates) unless row_list is expanded to encompass all the rows that are at the user's disposal.
         print("\nrow_list has %s items. values_list has %s items. Num_initial_rows is %s" % (len(self.row_list), len(values_list), self.num_initial_rows))
         if len(self.row_list) < self.num_initial_rows:
-            print("ADDING rows to self.row_list.")
+            if self.debug: print("ADDING rows to self.row_list.")
             ir = 0
             for ir in range(len(self.row_list), self.num_initial_rows-1):
-                print("Adding to row_list: %s" % (ir +1))
+                if self.debug: print("Adding to row_list: %s" % (ir +1))
                 self.row_list.append(ir)
         if len(self.values_list) < self.num_initial_rows:
             print("ADDING rows of lists to self.values_list.")
@@ -154,12 +158,13 @@ class EntryGrid(Frame):
                 tmpvals.append('')
             ir = 0
             for ir in range(len(self.values_list), self.num_initial_rows-1):
-                print("Adding to values_list: %s" % (ir +1))
+                if self.debug: print("Adding to values_list: %s" % (ir +1))
                 self.values_list.append(tmpvals)
-        print("\n Column list:")
-        print(self.col_list)
-        print("\n Row list:")
-        print(self.row_list)
+        if self.debug: 
+            print("\n Column list:")
+            print(self.col_list)
+            print("\n Row list:")
+            print(self.row_list)
         #Create row and column headers along top and left:		
         print ("\n In TkEntry.repopulate_grid(), ABOUT TO CALL repopulate_column_headings():  len(col_list)=" + str(len(self.col_list)) + ", len(row_list)=" + str(len(self.row_list)) + ", len(values_list)=" + str(len(self.values_list)) + "\n")
         self.repopulate_column_headings()
@@ -182,12 +187,12 @@ class EntryGrid(Frame):
                     #When we find the correct Entry object in the cell_widgets list, update its value to reflect the newly-submitted values_list.
                     #print("FOUND: X: %s Y: %s Current cell value: %s, new cell value: %s" % (str(cell["x"]), str(cell["y"]), str(cell["object"].value.get()), newvalue  ) )
                     if str(cell["x"]) == str(c) and str(cell["y"]) == str(r):
-                        #print("FOUND: X: %s Y: %s Current cell value: %s, New cell value: %s" % (str(cell["x"]), str(cell["y"]), str(cell["object"].value.get()), newvalue ) )
+                        #if self.debug: print("FOUND: X: %s Y: %s Current cell value: %s, New cell value: %s" % (str(cell["x"]), str(cell["y"]), str(cell["object"].value.get()), newvalue ) )
                         cell["object"].value.set(newvalue)
                         cell["object"].grid(column=c, row=r)
                         w = cell["object"]
                         self.grid_values[(c-1, r)] = w.value
-                        print("AFTER: X: %s Y: %s Cell value: %s" % (str(cell["x"]), str(cell["y"]), str(cell["object"].value.get())))
+                        if self.debug: print("AFTER: X: %s Y: %s Cell value: %s" % (str(cell["x"]), str(cell["y"]), str(cell["object"].value.get())))
                         found = True
                         break
                 if found == False:
@@ -202,7 +207,7 @@ class EntryGrid(Frame):
 
     def make_header(self):
         self.hdrDict = {}
-        print ("\n In TkEntry.make_header(), len(col_list)=" + str(len(self.col_list)) + ", len(row_list)=" + str(len(self.row_list)) + ", len(values_list)=" + str(len(self.values_list)) + "\n")
+        if self.debug: print ("\n In TkEntry.make_header(), len(col_list)=" + str(len(self.col_list)) + ", len(row_list)=" + str(len(self.row_list)) + ", len(values_list)=" + str(len(self.values_list)) + "\n")
         kw_hdr = {"readonlybackground":self.label_bgcolor, "background":self.label_bgcolor, "fg":self.label_fontcolor }
         #Create column labels along top of grid
         for i, label in enumerate(self.col_list):
@@ -291,16 +296,17 @@ class EntryGrid(Frame):
             x_col = 1
             for x_col in range(1, len(self.col_list)):
                 cell_value = self.get_cell_value(x_col, y_row)
-                print("X: %s Y: %s Cell value: %s" % (x_col, y_row, cell_value) )
+                if self.debug: print("X: %s Y: %s Cell value: %s" % (x_col, y_row, cell_value) )
                 row_values.append(cell_value)
                 x_col += 1
             y_row += 1
             self.meta_values_after_edit.append(row_values)
         #View the results:
         for row in self.meta_values_after_edit:
-            print("\n Next row:")
-            for col in row:
-                print(col)
+            pass
+            #print("\n Next row:")
+            #for col in row:
+            #    print(col)
         
         return self.meta_values_after_edit
 

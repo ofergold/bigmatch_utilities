@@ -19,7 +19,7 @@ gl_frame_height = 100
 
 #******************************************************************************
 class BlockingPass_Model():
-    debug = True
+    debug = False
     error_message = None
     parent_window = None                    #Parent_wiondow is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
@@ -47,9 +47,10 @@ class BlockingPass_Model():
     recfile_datadict_rowcount = 0
     memfile_datadict_rowcount = 0
     compare_methods = []                    #List of valid BigMatch comparison methods for a blocking run field pair.
-    howmany_passes = 6                      #Number of Bloaking Passes to display entry screens for.
+    how_many_passes = 10                    #Number of Blocking Passes to display entry screens for.
     blocking_passes = None                  #blocking_passes is a list of dicts, used in writing the user's Blocking Pass attributes to a Parmf.txt parameter file.  Dict example: {"index":index, "count_blocking_fields":count_blocking_fields, "count_matching_fields":count_matching_fields}
     blockingpass_views = []                 #blockingpass_views is a list of Tkinter frame objects. This is useful for hiding them when the user reloads a new set of BlockingPass screens after selecting a different DataDict or Parameter file.
+    blkpass_views_have_been_displayed =None #Flag to trap the event of a user displaying the blocking passes. This enables the "Save blocking pass info" button.	
     controls = []                           #self.controls is a list of the screen controls, which can be traversed after user has finished entering information
     controlrow_temp = {}                    #The self.controlrow_temp dict is used to temporarily assemble various controls into a single logical ROW. It will be EMPTY sometimes, if user did not select anything for a given blocking pass.
     control_index = 0                       #Counter or index of controls that have been added to the controls list
@@ -108,21 +109,24 @@ class BlockingPass_Model():
         #self.datadict_memfile = os.path.join("c:\\", "greg", "code", "bigmatch_utilities", "BigMatchGUI", "memfile.dict.csv")
         if self.error_message is not None:
             #self.error_message = "Crucial metadata not located"
-            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.logobject.logit("\nCalling handle_error with message '%s'" % (self.error_message) )
             self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
             return
 
     def load_compare_methods(self):
+        '''Bigmatch allows users to select from a predefined list of comparison algorithms for each pair of matching fields '''
         self.compare_methods.append("")
         self.compare_methods.append("c (exact string comparison)")
+        self.compare_methods.append("ci (inverted string comparison)")
         self.compare_methods.append("uo (string comparison w/variation)")
-        self.compare_methods.append("uoi (inverted string comparison w/variation)")
+        self.compare_methods.append("uoi (inverted string comparison w/var)")
         self.compare_methods.append("p (numeric comparison for age)")
         self.compare_methods.append("y (numeric comparison for year)")
         self.compare_methods.append("q (strict numeric for year/age)")
         self.compare_methods.append("s street name comparison")
 
     def get_compare_method_from_abbrev(self, abbrev):
+        '''Display the full name of the Bigmatch comparison method, not the abbreviation '''
         return_value = ''
         abbrev = str(abbrev).lower().strip()
         for text in self.compare_methods:
@@ -131,7 +135,7 @@ class BlockingPass_Model():
         return return_value
         
     def read_datadict_file_into_arrays(self, file_name, mem_or_rec): 
-        print("\n" + "In read_datadict_file_into_arrays, datadict_file_name = '" + str(file_name) + "'")
+        self.logobject.logit("\nIn read_datadict_file_into_arrays, datadict_file_name = '" + str(file_name) + "'", True, True, True)
         if mem_or_rec == "rec":
             self.meta_values_recfile = []
             self.meta_columns_recfile = []
@@ -146,11 +150,11 @@ class BlockingPass_Model():
             self.memfile_datadict_rowcount = 0
         i = 0
         for line in content:
-            self.logobject.logit("Type of Line: %s" % (str(type(line))), True, True )           #Debug--display this row from the data dictionary
-            self.logobject.logit(line, True, True)                       #Debug--display this row from the data dictionary
+            #self.logobject.logit("Type of Line: %s" % (str(type(line))), True, True )           #Debug--display this row from the data dictionary
             line = line.replace("\n", "")     #Remove linefeed characters
             if not line:                      #Blank row in the file
                 continue
+            if self.debug: self.logobject.logit(line, True, True)                       #Debug--display this row from the data dictionary
             if(i==0):                         #Header row in the CSV file
                 if mem_or_rec == "rec":
                     self.meta_columns_recfile = line.split(",")
@@ -182,7 +186,7 @@ class BlockingPass_Model():
             meta_values = self.meta_values_recfile		#meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.
         elif mem_or_rec == "mem": 
             meta_values = self.meta_values_memfile    	#meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.
-        print("\n In get_datacolumn_pos(), type of meta_values is: '%s', SEEKING column_name='%s' ... mem_or_rec=%s" % ( str(type(meta_values)), column_name, mem_or_rec) )
+        if self.debug: self.logobject.logit("\n In get_datacolumn_pos(), type of meta_values is: '%s', SEEKING column_name='%s' ... mem_or_rec=%s" % ( str(type(meta_values)), column_name, mem_or_rec), True, True, True )
         #Traverse rows and columns of the Data Dictionary array until we locate the requested row (which represents a Data Column in the Data File)
         row_index = 0
         requested_row = None
@@ -241,7 +245,7 @@ class BlockingPass_Model():
                 uniqid_column = None
                 for row in csvreader:
                     if(row_index == 0):       #Top (header) row in the Data Dictionary CSV
-                        self.logobject.logit("*****locate_crucial_datadict_columns(): row[0] = " + str(row[0]) + " mem_or_rec: " + mem_or_rec + "***", True, True)
+                        if self.debug: self.logobject.logit("*****locate_crucial_datadict_columns(): row[0] = " + str(row[0]) + " mem_or_rec: " + mem_or_rec + "***", True, True)
                         column_index = 0
                         for cell in row:
                             #print("Row (" + str(row_index) + ") col (" + str(column_index) + "): " + str(cell) )
@@ -272,7 +276,7 @@ class BlockingPass_Model():
                     self.startpos_col_in_recfile_dict = startpos_column
                     self.width_col_in_recfile_dict = width_column
                     self.uniqid_col_in_recfile_dict = uniqid_column
-                print("\n mem_or_rec: %s. colname_column: %s, startpos_column: %s, width_column: %s, uniqid_column: %s" % (mem_or_rec, colname_column, startpos_column, width_column, uniqid_column) )
+                if self.debug: self.logobject.logit("\n mem_or_rec: %s. colname_column: %s, startpos_column: %s, width_column: %s, uniqid_column: %s" % (mem_or_rec, colname_column, startpos_column, width_column, uniqid_column), True, True, True )
                 self.logobject.logit("\n mem_or_rec: %s. colname_column: %s, startpos_column: %s, width_column: %s, uniqid_column: %s" % (mem_or_rec, colname_column, startpos_column, width_column, uniqid_column), True, True )
                 if mem_or_rec == "mem":
                     if self.fieldname_col_in_memfile_dict is not None and self.startpos_col_in_memfile_dict is not None and self.width_col_in_memfile_dict is not None and self.uniqid_col_in_memfile_dict is not None:
@@ -285,7 +289,7 @@ class BlockingPass_Model():
                     else:
                         self.error_message = "fieldname_col_in_recfile_dict or a related property was not successfully populated."
                 if self.error_message is not None:
-                    self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+                    self.logobject.logit("\nCalling handle_error with message '%s'" % (self.error_message) )
                     self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
                     return False
         return success
@@ -319,7 +323,7 @@ class BlockingPass_Model():
                 csvreader = csv.reader(csvfile, delimiter=',') 
                 row_index = 0
                 for row in csvreader:
-                    self.logobject.logit("Row length: %s" % (len(row) ), True, True)
+                    if self.debug: self.logobject.logit("Row length: %s" % (len(row) ), True, True)
                     if len(row) == 1:             
                         if str(row[0]) == "\n":            #blank row has just newline feed 
                             row[0] = row[0].replace("\n", "")
@@ -345,7 +349,7 @@ class BlockingPass_Model():
         if sequence_column_name is None:
             self.error_message = "No unique ID field was flagged in data dictionary file '" + str(datadict_file) + "'"
         if self.error_message is not None:
-            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.logobject.logit("\nCalling handle_error with message '%s'" % (self.error_message) )
             self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
             return
         return col_attribs
@@ -505,14 +509,14 @@ class BlockingPass_Model():
                 self.controlrow_temp["memfile_width"] = memfile_attribs["width"]
             else:
                 self.error_message = "Failed to locate starting position for control with refname '%s', rowtype '%s' and value '%s'" % (refname, rowtype, memfile_column) 
-                self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+                self.logobject.logit("\nCalling handle_error with message '%s'" % (self.error_message) )
                 self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
                 return
         elif refname[:15].lower() == "optmatch_compar":     # and rowtype == "matching_fields":
             print("\n Comparison Method is being set to %s \n" % (varvalue[:2].strip()) )
             if varvalue == '':
                 varvalue = 'uo'
-            self.controlrow_temp["comparison_method"] = varvalue[:2].strip()   #Comparison method (matching fields section ONLY)
+            self.controlrow_temp["comparison_method"] = varvalue[:3].replace("(", "").strip()   #Comparison method (matching fields section ONLY)
         elif refname[:7].lower() == "hidden_":  
             self.controlrow_temp["null_flag"] = 0
         elif refname[:10].lower() == "spnmatch_m":  # and rowtype == "matching_fields":
@@ -545,7 +549,6 @@ class BlockingPass_Model():
             #print("CONTROL: " + str(control.blocking_pass) + " " + str(control.row_index) + " " + control.ref_name  + " " + control.field_name + " " + control.row_type + " " + control.startpos_recfile + " " + control.width_recfile + " " + control.startpos_memfile + " " + control.width_memfile  + " " + varname + " " + value
             #print("Temp CONTROL row, so far: " )
             #print(self.controlrow_temp)
-        		
             return self.include_this_row
 
     def initialize_controlrow(self, control, recfile_column=''):
@@ -616,10 +619,11 @@ class BlockingPass_Model():
             self.blocking_passes.append(pass_)
             count_populated_blocking_passes += 1
             #count_populated_blocking_passes = len(self.blocking_passes)
-            print("\n Final Blocking Pass totals:")
-            for pass_ in self.blocking_passes:
-                print(pass_)
-            print("\n")
+            if self.debug:
+                print("\n Final Blocking Pass totals:")
+                for pass_ in self.blocking_passes:
+                    print(pass_)
+                print("\n")
             #Armed with these totals-per-pass, open ParmF.txt for writing out the information: 
             #with open(self.parmf_file, "w") as f:
             #if os.path.isfile(self.bigmatch_parmf_file_to_save):
@@ -645,7 +649,7 @@ class BlockingPass_Model():
                 for row in self.parmf_rows:
                     #print(row)
                     if str(row["rowtype"]).lower() == "blocking_fields":
-                        print(row)
+                        if self.debug: self.logobject.logit(row, True, True, True)
                         blocking_row_string = str(row["recfile_column"]).lower().ljust(10) + bigspace + str(row["recfile_startpos"]).ljust(4) + " " + str(row["recfile_width"]).ljust(5) + " " + str(row["memfile_startpos"]).ljust(4) + " " + str(row["memfile_width"]).ljust(5) + " " + str(row["blank_flag"]).ljust(4)
                         f.write(blocking_row_string + "\n" )
                     elif str(row["rowtype"]).lower() == "matching_fields":
@@ -703,14 +707,11 @@ class BlockingPass_Model():
             traceback.print_exception(exc_type, exc_value, exc_traceback, limit=4, file=sys.stdout)
             self.logobject.logit("\n Error Line: %s" % (exc_traceback.tb_lineno), True, True )
             self.error_message += " - " + exc_value + ' --at Line: ' + str(exc_traceback.tb_lineno)
-            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.logobject.logit("\nCalling handle_error with message '%s'" % (self.error_message) )
             self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
         finally:
             pass
         return success
-
-    #def nothing(self):
-        
 
     def get_datafield_name_from_dict_startpos(self, startpos, mem_or_rec):
         '''Search the mem or rec DataDict file to find the column with a starting position equal to the "startpos" parameter.  Return the column name.'''
@@ -728,17 +729,19 @@ class BlockingPass_Model():
             fldnmindx = self.fieldname_col_in_recfile_dict
         if list:
             for item in list:
-                self.logobject.logit("SEEKING %s, FOUND %s" % (startpos, item[stposindx]), True, True )
+                if self.debug: self.logobject.logit("SEEKING %s, FOUND %s" % (startpos, item[stposindx]), True, True )
                 if int(item[stposindx]) == int(startpos):
-                    self.logobject.logit("GOT IT.", True, True)
+                    if self.debug: self.logobject.logit("GOT IT.", True, True)
                     return_value = str(item[fldnmindx])
                     break
         else:
             self.error_message = "Expected meta-values list, but encountered empty object."
-            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.logobject.logit("\nCalling handle_error with message '%s'" % (self.error_message) )
             self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
             return
-        self.logobject.logit("\nGET_Datfldnm_frdict_strtpos(), mem-rec=%s, startpo=%s, fldnmdx=%s, stposdx=%s, result=%s" % (mem_or_rec, startpos, fldnmindx, stposindx, return_value), True, True )
+        if self.debug: self.logobject.logit("\nGET_Datfldnm_frdict_strtpos(), mem-rec=%s, startpo=%s, fldnmdx=%s, stposdx=%s, result=%s" % (mem_or_rec, startpos, fldnmindx, stposindx, return_value), True, True )
+        if not return_value:
+            return_value = ''     #Get rid of zero or None
         return return_value
 
     def remove_widget(self):
@@ -761,27 +764,58 @@ class BlockingPass_Model():
     def get_current_variable_value(self, blocking_pass, row_type, control_type, data_column_name=''):
         #Based on an existing ParmF.txt parameter file, determine whether the control now being displayed has a corresponding stored value.
         parmdict = {}
-        blocking_pass = str(blocking_pass).lower().strip()
+        blocking_pass = str(blocking_pass).strip()
         data_column_name = str(data_column_name).lower().strip()
         row_type = str(row_type).lower().strip()
-        control_type = str(control_type).lower().strip()		
+        control_type = str(control_type).lower().strip()
         if self.bigmatch_parmf_file_to_load and not self.parmfileobj:       #parmfileobj is an instantiation of the BigmatchParmFile class
             self.instantiate_bigmatch_parmfile_object("load")
         if self.bigmatch_parmf_file_to_load and self.parmfileobj:
+            if self.debug: self.logobject.logit("IN get_current_variable_value(), blocking_pass: %s, row_type: %s, control_type: %s, data_column_name: %s" % (blocking_pass, row_type, control_type, data_column_name), True, True, True)
+            found_blkpass = found_rowtype = None     			#found_ctltyp =
+            blkps_already_checked = []
             for parm in self.parmfileobj.parms:
+                #Each item in parmfileobj.parms is a dictionary containing information about an item in the PARMF.TXT parameter file.
                 #Definition of the PARM dict: parmstuff = {"blocking_pass": blkpass_index, "row_index": self.row_index, "row_type": parmrow.row_type, "num_parms_in_row": parm["num_parms_in_row"], "parm_index": parm["parm_index"], "parm_counter":cntr, "parm_value": parm["parm_value"], "parm_type": parm["parm_type"]}
-                #print("PARMFILE PARM: blkpass: %s, row_index: %s, row_type: %s, num parms in row: %s, parm_index: %s, parm_type: %s, parm_value: %s" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["num_parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"] ) )
+                #if self.debug: self.logobject.logit("PARMFILE PARM: blkpass: %s, row_index: %s, row_type: '%s', num parms in row: %s, parm_index: %s, parm_type: '%s', parm_value: '%s'" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["num_parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"] ), True, True, True )
                 match = False
-                if str(control_type).lower()[:7] == "cutoff_" or str(control_type).lower()[:9] == "prcutoff_" or control_type == "uniqid":    #We can't use the First_Parm_In_Row for cutoff fields because they don't appear in a row with a Recfile_FIeld, the way BlockingField and MatchingField rows do.
+                blkpass = str(parm["blocking_pass"]).strip()
+                rowtp = str(parm["row_type"]).lower().strip()
+                ctltp = str(parm["parm_type"]).lower().strip()
+                #Before doing a full comparison on each row, check a few high-level variables such as Blocking Pass number, and if it doesn't match then move on to the next row.
+                if blkpass == blocking_pass:           #The blocking pass in this Parmf.txt row matches the blocking pass of the item being sought.
+                    found_blkpass = True
+                else: 
+                    if found_blkpass:                  #We previously encountered the correct blocking pass, but now we've encountered a non-matching blocking pass. This means we can ignore the remaining rows in the PARMF.TXT file
+                        break
+                    else:                              #This blocking pass does not match, but we need to keep looping because we have not yet encountered the correct blocking pass
+                        if blkpass in blkps_already_checked:
+                            continue                   #We already checked this blocking pass and it was no the one we seek
+                        else:
+                            blkps_already_checked.append(blkpass)  #Add this blocking pass to the list of passes we already ruled out
+                            continue
+                if rowtp == row_type:                  #The row_type in this Parmf.txt row matches the row_type of the item being sought.
+                    found_rowtype = True
+                else: 
+                    if found_rowtype:                  #We previously encountered the correct row type, but now we've encountered a non-matching row type. This means we can ignore the remaining rows in the PARMF.TXT file
+                        break
+                    else:                              #This row_type does not match, but we need to keep looping because we have not yet encountered the correct row_type.
+                        continue
+                if ctltp != control_type:
+                    continue
+                #Now we have the correct blocking pass, row type and control_type. Search only the PARMF.TXT rows that meet these criteria.
+                if self.debug: self.logobject.logit("PARMFILE PARM-- blkpass: %s, row_index: %s, row_type: '%s', num parms in row: %s, parm_index: %s, parm_type: '%s', parm_value: '%s'" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["num_parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"] ), True, True, True )
+                if str(control_type).lower()[:7] == "cutoff_" or str(control_type).lower()[:9] == "prcutoff_" or control_type == "uniqid":    #We can't use the First_Parm_In_Row for cutoff fields because they don't appear in a row with a Recfile_Field, the way BlockingField and MatchingField rows do.
                     if str(parm["blocking_pass"]).lower() == blocking_pass and str(parm["row_type"]).lower() == row_type and str(parm["parm_type"]).lower() == control_type:
                         match = True
                 else:                     #This row can be identified uniquely by blkpass_index + First_Parm_In_Row
                     if str(parm["blocking_pass"]).lower() == blocking_pass and str(parm["row_type"]).lower() == row_type and str(parm["parm_type"]).lower() == control_type and str(parm["first_parm_in_row"]).lower() == data_column_name:
                         match = True
                 if match:
-                    #print("**FOUND:BkPs %s, rwtp %s, pmtp %s 1stprminrw %s" % (blocking_pass, row_type, control_type, data_column_name) )
-                    #print("PARMFILE PARM: in get_current_varval, blkpass: %s, row_index: %s, row_type: %s, num_parms in row: %s, parm_index: %s, parm_type: %s, parm_value: %s, first_parm_in_row: %s" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["num_parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"], parm["first_parm_in_row"] ) )
+                    if self.debug: self.logobject.logit("**FOUND:BkPs %s, rwtp %s, pmtp %s 1stprminrw %s" % (blocking_pass, row_type, control_type, data_column_name), True, True, True )
+                    if self.debug: self.logobject.logit("PARMFILE PARM: in get_current_varval, blkpass: %s, row_index: %s, row_type: %s, num_parms in row: %s, parm_index: %s, parm_type: %s, parm_value: %s, first_parm_in_row: %s" % (parm["blocking_pass"], parm["row_index"], parm["row_type"], parm["num_parms_in_row"], parm["parm_index"], parm["parm_type"], parm["parm_value"], parm["first_parm_in_row"] ), True, True, True )
                     #return_value = parm["parm_value"]
+                    #"parm" refers to the dictionary describing the current item in PARMF.TXT.
                     parmdict = parm.copy()
                     break
 					
@@ -808,35 +842,35 @@ class BlockingPass_Model():
         blockingpass_view.initUI(**kw)   #DISPLAY THE FRAME OBJECT ON SCREEN
         return blockingpass_view
 
-    def display_views(self, container=None, howmany_passes=None):
+    def display_views(self, container=None, how_many_passes=None):
         #Instantiate blocking pass VIEWS here.  
         #Note that the currently instantiated MODEL object serves as model for ALL of the views, so attributes that should be different for each iteration cannot be read form the MODEL.
         if container is None:
             container = self.controller.bigcanvas.bigframe
-        if howmany_passes is None:
-            howmany_passes = self.howmany_passes
-        print("\n Top of BlockingPass_Model.display_views()")
-        self.logobject.logit("\n Top of BlockingPass_Model.display_views()", True, True)
+        if how_many_passes:
+            self.how_many_passes = how_many_passes
+        self.logobject.logit("\n Top of BlockingPass_Model.display_views(), how_many_passes=%s" % (self.how_many_passes), True, True)
         #DISPLAY THE SPECIFIED NUMBER OF BLOCKING PASS ENTRY FORMS (but only if the Data Dict files have been specified):
         if self.datadict_memfile and self.datadict_recfile:
             self.read_datadict_file_into_arrays(self.datadict_recfile, "rec")
             self.read_datadict_file_into_arrays(self.datadict_memfile, "mem")
             success1 = self.locate_crucial_datadict_columns("rec")
-            print("\n fieldname_col_in_recfile_dict: %s, startpos_col_in_recfile_dict: %s, width_col_in_recfile_dict: %s, uniqid_col_in_recfile_dict: %s" % (str(self.fieldname_col_in_recfile_dict), str(self.startpos_col_in_recfile_dict), str(self.width_col_in_recfile_dict), str(self.uniqid_col_in_recfile_dict) ) )
+            self.logobject.logit("\n fieldname_col_in_recfile_dict: %s, startpos_col_in_recfile_dict: %s, width_col_in_recfile_dict: %s, uniqid_col_in_recfile_dict: %s" % (str(self.fieldname_col_in_recfile_dict), str(self.startpos_col_in_recfile_dict), str(self.width_col_in_recfile_dict), str(self.uniqid_col_in_recfile_dict) ), True, True, True )
             success2 = self.locate_crucial_datadict_columns("mem")
-            print("\n fieldname_col_in_memfile_dict: %s, startpos_col_in_memfile_dict: %s, width_col_in_memfile_dict: %s, uniqid_col_in_memfile_dict: %s" % (str(self.fieldname_col_in_memfile_dict), str(self.startpos_col_in_memfile_dict), str(self.width_col_in_memfile_dict), str(self.uniqid_col_in_memfile_dict) ) )
+            self.logobject.logit("\n fieldname_col_in_memfile_dict: %s, startpos_col_in_memfile_dict: %s, width_col_in_memfile_dict: %s, uniqid_col_in_memfile_dict: %s" % (str(self.fieldname_col_in_memfile_dict), str(self.startpos_col_in_memfile_dict), str(self.width_col_in_memfile_dict), str(self.uniqid_col_in_memfile_dict) ), True, True, True )
             print("\n In BlockingPass_Model.display_views(), about to call function display_view() -- multiple times.")
             if self.error_message is not None:
-                self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+                self.logobject.logit("\nCalling handle_error with message '%s'" % (self.error_message) )
                 self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
                 return False
-            for i in range(0, howmany_passes):
+            for i in range(0, self.how_many_passes):
                 bgcolor = self.bgcolors[i]    #bgcolor = "#FDFFDF"   
                 print("\n In BlockingPass_Model.display_views(), calling display_view() for iteration #" + str(i) +". BgColor=" + bgcolor)
                 #DISPLAY THE BLOCKING PASS ENTRY SCREEN HERE:
                 self.display_view(container, i, width=self.frame_width, background=bgcolor, borderwidth=2, padx=3, pady=3)
             #Now disable the button which loads BlockingPasses--they load new passes in addition to the old ones.  TO DO: write clean-up routine to clear out old passes when user wants to re-load from scratch.
-            self.disable_display()  
+            self.blkpass_views_have_been_displayed = True
+            self.update_button_state()
         else:
             #User has not yet selected Data Dictionaries, which are required for displaying Blocking Pass entry screens.
             self.display_openfile_dialogs(container)
@@ -878,7 +912,7 @@ class BlockingPass_Model():
         else:
             success = False
             self.error_message = "Invalid type: '%s'" % (file_category.lower()) 
-            self.logobject.logit("\nCalling handle_error with message %s" % (self.error_message) )
+            self.logobject.logit("\nCalling handle_error with message '%s'" % (self.error_message) )
             self.controller.common.handle_error(self.error_message, False, False, "blockingpass")
             return
         print("\n Type of fpathobj: '%s' \n" % (str(type(fpathobj)) ) )
@@ -951,8 +985,6 @@ class BlockingPass_Model():
         self.message_region.configure(**kw)
 
     def update_message_region(self, text='', clear_after_ms=5000, **kw):
-        #if not text:
-        #    text = "Uh-oh"
         self.message_region.configure(text=text)
         self.message_region.after(clear_after_ms, self.clear_message_region)
 		
@@ -966,14 +998,18 @@ class BlockingPass_Model():
         self.datadict_memfile = self.filepathobj_memfile.file_name_with_path
         self.bigmatch_parmf_file_to_load = self.filepathobj_parmfile_to_load.file_name_with_path
         self.bigmatch_parmf_file_to_save = self.filepathobj_parmfile_to_save.file_name_with_path
-        self.check_for_required_files()
         print("\n In BlockingPass_Model.update_filepath(), datadict_recfile='%s', datadict_memfile='%s', bigmatch_parmf_file_to_load='%s', bigmatch_parmf_file_to_save='%s'" % (str(self.datadict_recfile), str(self.datadict_memfile), str(self.bigmatch_parmf_file_to_load), str(self.bigmatch_parmf_file_to_save) ) )
-        print("\n BEFORE check_for_required_files: self.filepathobj_parmfile_to_save.file_name_with_path = '%s' and self.bigmatch_parmf_file_to_save = '%s'" % (self.filepathobj_parmfile_to_save.file_name_with_path, self.bigmatch_parmf_file_to_save) )
+        print("\n BEFORE update_button_state: self.filepathobj_parmfile_to_save.file_name_with_path = '%s' and self.bigmatch_parmf_file_to_save = '%s'" % (self.filepathobj_parmfile_to_save.file_name_with_path, self.bigmatch_parmf_file_to_save) )
+        self.update_button_state()
         #Refresh the Blocking Pass view when the user selects a new DataDict file.
         #self.display_view()
         self.update_master_paths(file_name_with_path)                           #The main controller object (main.py) tracks the locations that the user has opened files in. Update that now.
         self.update_initial_dir_for_file_open_dialogs()                         #Update the Tkinter file-open-dialog frames with the latest user selections of folders for file-open.
- 
+        if callback_string.lower().strip()[:4] == "save": #This is a file SAVE AS, not a FILE OPEN
+            #Display a temporary message notifying the user that their file was created.
+            print("\nEnable SAVE button because callback_string='%s'" % (callback_string) )
+            self.update_message_region("Click 'Save blocking info to parameter file' to save changes to the Parmf.txt file")
+
     def update_master_paths(self, file_name_with_path):
         if file_name_with_path:	
             head, tail = os.path.split(file_name_with_path)
@@ -1001,28 +1037,33 @@ class BlockingPass_Model():
         self.filepathobj_parmfile_to_load.calc_initial_dir_for_file_open(self.bigmatch_parmf_file_to_load, "parmfile", "")
         self.filepathobj_parmfile_to_save.calc_initial_dir_for_file_open(self.bigmatch_parmf_file_to_save, "parmfile", "")
         
-    '''def respond_to_recfiledict_select(self):
-        self.datadict_recfile = self.filepathobj_recfile.file_name_with_path
-        self.check_for_required_files()'''
-
-    def check_for_required_files(self):
+    def update_button_state(self):
         if self.datadict_recfile and self.datadict_memfile:
-            self.enable_display()
+            #Set the flag for single-file dedupe vs. multiple file linkage
             if str(self.datadict_recfile).lower().strip() == str(self.datadict_memfile).lower().strip():       #DataDictionaries are the exact same file in the same location -- user wants to dedupe a single file, not match two files against each other.
                 self.dedupe_single_file = True
             else:
                 self.dedupe_single_file = False
+            #Enable DISPLAY button
+            if self.blkpass_views_have_been_displayed:      #Once the blocking passes have been displayed, do not allow the user to click "Display" again!
+                self.disable_display()
+            else:
+                self.enable_display()
+            #Enable SAVE button?
+            if self.blkpass_views_have_been_displayed and self.bigmatch_parmf_file_to_save:
+                self.enable_save()
+            else:
+                self.disable_save()
+            #Enable parmfile load
+            if self.bigmatch_parmf_file_to_load:
+                self.enable_parmfile_load()
         else:
+            #Disable DISPLAY button
             self.disable_display()
-        if self.bigmatch_parmf_file_to_save:
-            self.enable_save()
-        else:
-            self.disable_save()
-        if self.bigmatch_parmf_file_to_load:
-            self.enable_parmfile_load()
 
     def enable_display(self):
-        self.btnDisplayBlkpasses.config(state=NORMAL)        #Button is initially disabled
+        if not self.blkpass_views_have_been_displayed:
+           self.btnDisplayBlkpasses.config(state=NORMAL)        #Button is initially disabled. It is disabled again once the blocking passes are displayed.
 
     def disable_display(self):
         self.btnDisplayBlkpasses.config(state=DISABLED) 
@@ -1034,6 +1075,7 @@ class BlockingPass_Model():
         pass
 
     def enable_save(self):
+        print("In enable_save(), blkpass_views_have_been_displayed = %s" % (self.blkpass_views_have_been_displayed) )
         self.btnSaveToParmFile.config(state=NORMAL)          #Button is initially disabled
 
     def disable_save(self):
@@ -1045,7 +1087,7 @@ class BlockingPass_Model():
 #******************************************************************************
 #******************************************************************************
 class BlockingPass_View(Frame):
-    debug = True
+    debug = False
     container = None
     model = None
     widgetstack_counter = None
@@ -1065,6 +1107,8 @@ class BlockingPass_View(Frame):
         self.model = model 
         self.pass_index = pass_index                              #Typically we display 6 or 7 blocking pass views on the screen at one time. The blockpassview_index is a counter (index) for these different views.
         self.show_view = show_view
+        #Set the debug flag to the Model's debug flag
+        self.debug = self.model.debug
         #Display the frame:
         print("\n In BlockingPass_View._init_: self.show_view=" + str(self.show_view))
         if self.show_view:		#Normally this does NOT trigger the screen display, because the class is instantiated and THEN displayed later.
@@ -1089,7 +1133,7 @@ class BlockingPass_View(Frame):
         for i in range(0, self.model.recfile_datadict_rowcount):
             self.rowconfigure(0, pad=3)
         #Frame Title:
-        print("\n In BlockingPass_View.initUI: About to display main BlockingPass frame title")
+        if self.debug: print("\n In BlockingPass_View.initUI: About to display main BlockingPass frame title")
         widgetspot = self.get_widgetstack_counter()
         self.label_object = Label(self, text=self.model.title + " #" + str(self.pass_index +1))
         self.label_object.grid(row=widgetspot, column=0, columnspan=4, sticky=W) 
@@ -1109,6 +1153,7 @@ class BlockingPass_View(Frame):
         #*************************************
         lbl_config = {"font": ("Arial", 12, "bold italic"), "background": "#FEF0A0", "fg": "#024CC6", "borderwidth":2, "width":80, "anchor":W}
         #BLOCKING FIELDS:
+        if self.debug: self.model.logobject.logit("Displaying Blocking Field controls", True, True, True)
         i = 0
         self.rowtype = "blocking_fields"         #Each row in the CONTROLS list must be stamped with its row type (e.g., "blocking_fields", "matching_fields", etc.
         vert_position = self.get_widgetstack_counter()
@@ -1120,11 +1165,15 @@ class BlockingPass_View(Frame):
             vert_position = self.get_widgetstack_counter()
             #Check to see whether this ROW in this BlockingPass was found in the PARMF.TXT parameters file (if a parmf file was specified). If so, find the value that the current control should be set to.
             curvalue = 0   
-            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, "recfile_field", data_column_name)
+            control_type = "recfile_field"
+            if self.debug: self.model.logobject.logit("\nAbout to check for a saved value in Parmf.txt file for data_column '%s' on pass %s, rowtype '%s', control_type '%s'" % (data_column_name, self.pass_index, self.rowtype, control_type) )
+            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, control_type, data_column_name)
             if parmdict:              #A Record File field was found for this ROW in the BLOCKING FIELDS SECTION.
-                curvalue = 1          #parmdict["parm_value"] 
-                #print("--After Get_cur_var...val() for RecFile fld, row %s (BlockFld sect) parmdict:" % (self.row_index) ) 
-                #print(parmdict)
+                curvalue = 1          #Check the Checkbox      #parmdict["parm_value"] 
+                #if self.debug: self.model.logobject.logit("--After Get_cur_var...val() for RecFile fld, row %s (BlockFld sect) parmdict:" % (self.row_index), True, True, True ) 
+                #if self.debug: self.model.logobject.logit(parmdict, True, True, True)
+            else:
+                if self.debug: self.model.logobject.logit("(not found in parmf.txt for this blocking pass)", True, True, True)
             #************************************************
             ##Checkbox to indicate that this field should be included in the current Blocking Pass:
             chk = self.create_checkbox(data_column_name, vert_position, curvalue, "chkmainblk_" + self.rowtype[:2] + "_" + data_column_name, gridcolumn=0, width=12, font_size=11, rowindex=self.row_index, data_column_name=data_column_name, text=data_column_name)
@@ -1133,24 +1182,29 @@ class BlockingPass_View(Frame):
             fieldnames = ['']     #Build a list of columns/fields in the MEMORY FILE, so we can display the list for the user to match these to RECORD FILE columns.
             for metavalue in self.model.meta_values_memfile:
                 fieldnames.append(metavalue[0])
-            curvalue = ''
-            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, "memfile_startpos", data_column_name)
+            curvalue = ''   
+            control_type = "memfile_startpos"
+            if self.debug: self.model.logobject.logit("\nAbout to check for a saved value in Parmf.txt file for data_column '%s' on pass %s, rowtype %s, control_type %s" % (data_column_name, self.pass_index, self.rowtype, control_type) )
+            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, control_type, data_column_name)
             if parmdict:             #A Memory File field was found for this ROW in the BLOCKING FIELDS SECTION.
                 #For MEMORY FILE fields, we can't retrieve the FIELD NAME from the ParmF.txt file because it is referenced only by a starting position, not name.
                 startpos = parmdict["parm_value"]
                 curvalue = self.model.get_datafield_name_from_dict_startpos(startpos, "mem")
-                print("--After Get_cur_var...val() for MemFile fld, row %s (BlockFld sect), parmdict:" % (self.row_index) ) 
-                print(parmdict) 
+                #if self.debug: self.model.logobject.logit("--After Get_cur_var...val() for MemFile fld, row %s (BlockFld sect), curvalue='%s', parmdict:" % (self.row_index, curvalue), True, True, True ) 
+                #if self.debug: self.model.logobject.logit(parmdict) 
+                #if self.debug: self.model.logobject.logit(parmdict, True, True, True) 
             control_name = self.model.get_control_name("opt", self.rowtype, data_column_name, "memfld", str(self.pass_index) )    #get_control_name_prefix(widget_type, row_type, data_column_name, parm_type, blocking_pass_index)
             opt = self.create_optmenu(fieldnames, curvalue, control_name, vert_position, gridcolumn=1, width=12, rowindex=self.row_index, rowtype=self.rowtype, data_column_name=data_column_name, text=data_column_name)
             #************************************************
             ##Spinner for 0/1 value of Blank Flag.  Normally set to 1.			
             curvalue = '1'
-            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, "blank_flag", data_column_name)
+            control_type = "blank_flag"
+            if self.debug: self.model.logobject.logit("\nAbout to check for a saved value in Parmf.txt file for data_column '%s' on pass %s, rowtype %s, control_type %s" % (data_column_name, self.pass_index, self.rowtype, control_type) )
+            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, control_type, data_column_name)
             if parmdict:
                 curvalue = parmdict["parm_value"]
-                #print("--After Get_cur_var...val() for BlankFlag, row %s (BlockFld sect), parmdict:" % (self.row_index) ) 
-                #print(parmdict) 
+                #if self.debug: self.model.logobject.logit("--After Get_cur_var...val() for BlankFlag, row %s (BlockFld sect), parmdict:" % (self.row_index) ) 
+                #if self.debug: self.model.logobject.logit(parmdict) 
             value_tuple = (0,1)
             control_name = self.model.get_control_name("spn", self.rowtype, data_column_name, "blankflag", str(self.pass_index) ) 
             spn = self.create_spinner(0, 1, value_tuple, control_name, vert_position, 2, "1", rowtype=self.rowtype, rowindex=self.row_index, controltype="spinner", data_column_name=data_column_name, text="")
@@ -1170,11 +1224,13 @@ class BlockingPass_View(Frame):
             vert_position = self.get_widgetstack_counter()
             #Check to see whether this Row in this BlockingPass was found in the PARMF.TXT parameters file (if a parmf file was specified)
             curvalue = 0   
-            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, "recfile_field", data_column_name)
+            control_type = "recfile_field"
+            if self.debug: self.model.logobject.logit("\nAbout to check for a saved value in Parmf.txt file for data_column '%s' on pass %s, rowtype %s, control_type %s" % (data_column_name, self.pass_index, self.rowtype, control_type) )
+            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, control_type, data_column_name)
             if parmdict:
                 curvalue = 1    #parmdict["parm_value"] 
-                print("--After Get_cur_var...val() for RecFile fld, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
-                print(parmdict)
+                #if self.debug: self.model.logobject.logit("--After Get_cur_var...val() for RecFile fld, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
+                #if self.debug: self.model.logobject.logit(parmdict)
             #Checkbox to indicate that this field should be included in the current Blocking Pass:
             chk = self.create_checkbox(data_column_name, vert_position, curvalue, "chkmainmtch_" + self.rowtype[:2] + "_" + data_column_name, gridcolumn=0, width=12, font_size=11, rowindex=self.row_index, rowtype=self.rowtype, data_column_name=data_column_name, text=data_column_name)
             #*********************************************************			
@@ -1183,13 +1239,15 @@ class BlockingPass_View(Frame):
             for metavalue in self.model.meta_values_memfile:
                 fieldnames.append(metavalue[0])
             curvalue = ''
-            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, "memfile_startpos", data_column_name)
+            control_type = "memfile_startpos"
+            if self.debug: self.model.logobject.logit("\nAbout to check for a saved value in Parmf.txt file for data_column '%s' on pass %s, rowtype %s, control_type %s" % (data_column_name, self.pass_index, self.rowtype, control_type) )
+            parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, control_type, data_column_name)
             if parmdict:
                 #For MEMORY FILE fields, we can't retrieve the FIELD NAME from the ParmF.txt file because it is referenced only by a starting position, not name.
                 startpos = parmdict["parm_value"]
                 curvalue = self.model.get_datafield_name_from_dict_startpos(startpos, "mem")
-                #print("--After Get_cur_var...val() for MemFile fld, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
-                #print(parmdict)
+                #if self.debug: self.model.logobject.logit("--After Get_cur_var...val() for MemFile fld, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
+                #if self.debug: self.model.logobject.logit(parmdict)
             control_name = self.model.get_control_name("opt", self.rowtype, data_column_name, "memfld", str(self.pass_index) )    #get_control_name_prefix(widget_type, row_type, data_column_name, parm_type, blocking_pass_index)
             opt = self.create_optmenu(fieldnames, curvalue, control_name, vert_position, gridcolumn=1, width=12, rowindex=self.row_index, rowtype=self.rowtype, data_column_name=data_column_name, text=data_column_name)
             #Hidden control - not displayed and always set to "0", but needs to be in the self.controls list because that's how values get written to the ParmF.txt parameter file.
@@ -1203,10 +1261,10 @@ class BlockingPass_View(Frame):
             if parmdict:
                 curvalue = parmdict["parm_value"]
                 curvalue = self.model.get_compare_method_from_abbrev(curvalue)            #parm file stores a partial, not user-friendly text string
-                print("--After Get_cur_var...val() for ComparFld, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
-                print(parmdict) 
+                #if self.debug: self.model.logobject.logit("--After Get_cur_var...val() for ComparFld, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
+                #if self.debug: self.model.logobject.logit(parmdict) 
             control_name = self.model.get_control_name("opt", self.rowtype, data_column_name, "compar", str(self.pass_index) )    
-            opt = self.create_optmenu(self.model.compare_methods, curvalue, control_name, vert_position, gridcolumn=2, width=26, rowindex=self.row_index, data_column_name=data_column_name, text=data_column_name)
+            opt = self.create_optmenu(self.model.compare_methods, curvalue, control_name, vert_position, gridcolumn=2, width=30, rowindex=self.row_index, data_column_name=data_column_name, text=data_column_name)
             #**********************************************************
             #Spinner for M-value:
             curvalue = self.model.default_m_value                                          #DEFAULT m-value
@@ -1218,8 +1276,8 @@ class BlockingPass_View(Frame):
                         curvalue = int(str(curvalue).replace(".0", ""))
                 except ValueError:
                     curvalue = 0
-                #print("--After Get_cur_var...val() for M-Value, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
-                #print(parmdict) 
+                #if self.debug: self.model.logobject.logit("--After Get_cur_var...val() for M-Value, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
+                #if self.debug: self.model.logobject.logit(parmdict) 
             value_tuple = (0,10,20,30,40,50,60,70,80,90,100)
             control_name = self.model.get_control_name("spn", self.rowtype, data_column_name, "m-value", str(self.pass_index) ) 
             spn = self.create_spinner(0, 100, value_tuple, control_name, vert_position, 3, curvalue, rowtype=self.rowtype, rowindex=self.row_index, controltype="spinner", data_column_name=data_column_name, text="")
@@ -1234,8 +1292,8 @@ class BlockingPass_View(Frame):
                         curvalue = int(str(curvalue).replace(".0", ""))
                 except ValueError:
                     curvalue = 0
-                #print("--After Get_cur_var...val() for U-Value, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
-                #print(parmdict) 
+                #if self.debug: self.model.logobject.logit("--After Get_cur_var...val() for U-Value, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
+                #if self.debug: self.model.logobject.logit(parmdict) 
             control_name = self.model.get_control_name("spn", self.rowtype, data_column_name, "u-value", str(self.pass_index) ) 
             spn = self.create_spinner(0, 100, value_tuple, control_name, vert_position, 4, curvalue, rowtype=self.rowtype, rowindex=self.row_index, controltype="spinner", data_column_name=data_column_name, text="")
             i += 1
@@ -1256,8 +1314,8 @@ class BlockingPass_View(Frame):
         parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, "cutoff_hi", data_column_name)
         if parmdict:
             curvalue = parmdict["parm_value"]
-            #print("__After calling get_current_variable_value(), parmdict is:") 
-            #print(parmdict) 
+            if self.debug: self.model.logobject.logit("__After calling get_current_variable_value(), parmdict is:") 
+            if self.debug: self.model.logobject.logit(parmdict) 
         cutoff_kw = {"width":12, "background":self.bgcolor, "borderwidth":1, "font":("Arial", 11, "bold")}  #, "data_column_name":data_column_name, "text":data_column_name}
         control_name = self.model.get_control_name("txt", self.rowtype, data_column_name, "cutoff_hi", str(self.pass_index) ) 
         txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, self.rowtype, **cutoff_kw)
@@ -1268,8 +1326,8 @@ class BlockingPass_View(Frame):
         parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, "cutoff_low", data_column_name)
         if parmdict:
             curvalue = parmdict["parm_value"]
-            #print("__After calling get_current_variable_value(), parmdict is:") 
-            #print(parmdict) 
+            if self.debug: self.model.logobject.logit("__After calling get_current_variable_value(), parmdict is:") 
+            if self.debug: self.model.logobject.logit(parmdict) 
         control_name = self.model.get_control_name("txt", self.rowtype, data_column_name, "cutoff_low", str(self.pass_index) ) 
         txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, self.rowtype, **cutoff_kw)
         self.row_index += 1
@@ -1283,8 +1341,8 @@ class BlockingPass_View(Frame):
         parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, "prcutoff_hi", data_column_name)
         if parmdict:
             curvalue = parmdict["parm_value"]
-            print("\n After calling get_current_variable_value(), parmdict is:") 
-            print(parmdict) 
+            if self.debug: self.model.logobject.logit("\n After calling get_current_variable_value(), parmdict is:") 
+            if self.debug: self.model.logobject.logit(parmdict) 
         control_name = self.model.get_control_name("txt", self.rowtype, data_column_name, "prcutoff_hi", str(self.pass_index) ) 
         txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, self.rowtype, **cutoff_kw)
         #Print Cutoff LowVal:
@@ -1294,8 +1352,8 @@ class BlockingPass_View(Frame):
         parmdict = self.model.get_current_variable_value(self.pass_index, self.rowtype, "prcutoff_low", data_column_name)
         if parmdict:
             curvalue = parmdict["parm_value"]
-            print("\n After calling get_current_variable_value(), parmdict is:") 
-            print(parmdict) 
+            if self.debug: self.model.logobject.logit("\n After calling get_current_variable_value(), parmdict is:") 
+            if self.debug: self.model.logobject.logit(parmdict) 
         control_name = self.model.get_control_name("txt", self.rowtype, data_column_name, "prcutoff_low", str(self.pass_index) ) 
         txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, self.rowtype, **cutoff_kw)
         self.row_index += 1
@@ -1380,7 +1438,7 @@ class BlockingPass_View(Frame):
 
 #******************************************************************************************		
 class Control():
-    debug = True
+    debug = False
     error_message = None
     value_object = None    #A Tkinter StringVar() variable which holds the value of this object.
     value = None           #Actual string value, accessed as StringVar().get()
@@ -1456,7 +1514,7 @@ class Control():
 
 #******************************************************************************************		
 class ControlRow():
-    debug = True
+    debug = False
     error_message = None
     blocking_pass = None   #
     row_index = None       #

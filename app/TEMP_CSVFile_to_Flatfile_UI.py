@@ -13,7 +13,20 @@ from FilePath import *
 from DataDict import *
 from CHLog import *
 from Datafile_to_RDBMS import *
-
+#The following libraries are not within the BigMatch repo, so they might be left out of a BigMatch GUI installation or found in an unexpected place.
+current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
+up_one, tail = os.path.split(current)                             #bigmatch
+up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
+print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
+python_common_found = None
+if os.path.isdir(os.path.join(up_two, "common_functions", "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "etl", "python_common"))     #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Datadict_Common import *
+elif os.path.isdir(os.path.join(up_two, "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "python_common"))                   #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Datadict_Common import *
 gl_frame_color = "ivory"
 gl_frame_width = 400
 gl_frame_height = 100
@@ -126,8 +139,8 @@ class CSVFile_to_Flatfile_UI_Model():
         return self.view_object	
 
     def copy_datadict_to_class_properties(self):
-        datadict = DataDict_Model(self.parent_window, self.controller)   #BigMatch DataDict class
-        hdr_list = datadict.load_standard_datadict_headings()    #Make sure we are using the standard, updated list of column headings for the Data Dictionary
+        datadict = Datadict_Common()            #Standard DataDict class
+        hdr_list = datadict.load_standard_datadict_headings(["bigmatch"])     #Make sure we are using the standard, updated list of column headings for the Data Dictionary
         datadict = None                         #Erase the class instantiation when done to release memory
         #Check our assumptions about which Data Dictionary column headings are in the standard:		
         if not "column_name" in hdr_list:

@@ -5,6 +5,7 @@ import platform
 import csv
 import getpass
 import datetime
+import sqlite3
 from FilePath import *
 
 gl_font_color = "lightblue"
@@ -14,7 +15,7 @@ gl_font_style = "Arial"
 class CHLog():
     '''Log class handles displaying and/or recording information that is generally not intended for the user.  
 	This class posts the information to the Python command window (default), a log file or database. '''
-    debug = True
+    debug = False
     testmode = True
     error_message = None
     enable_file_logging = False
@@ -27,7 +28,7 @@ class CHLog():
     errlogfile_handle = None
     errlogfile_is_open = False
     #Database logging
-    db_conn =  None                    #RDBMS connection object for storing data values
+    db_conn = None                     #RDBMS connection object for storing data values
     db_platform = ""                   #RDBMS platform to be used for importing the flat file data (e.g., "sqlite3", "mysql")
     db_catalog = None                  #RDBMS database (catalog) name where data will be saved
     db_tablename = None                #RDBMS table name
@@ -137,7 +138,7 @@ class CHLog():
                         if not self.errlogfile_is_open:
                             self.open_errlogfile()
                     typ = str(type(text)).lower().replace("<class '", "").replace("'>", "")
-                    print("#--#Type of log text: %s. Type of logfile_handle: %s. message_is_error? %s" % (typ, self.logfile_handle, str(self.message_is_error)))
+                    #print("#--#Type of log text: %s. Type of logfile_handle: %s. message_is_error? %s" % (typ, self.logfile_handle, str(self.message_is_error)))
                     if typ == "str":
                         #print("\nAbout to write string to logfile")
                         #self.logfile_handle.write(text.encode('utf-8'))
@@ -153,7 +154,7 @@ class CHLog():
                                 if self.message_is_error:                           #For error messages, write them to the standard log and then write them to an errors-only log for at-a-glance monitoring of errors
                                     self.errlogfile_handle.write(str(listitem))
                     elif typ == "dict":
-                        for key, value in text:
+                        for key, value in text.items():    #for key, value in text:
                             self.logfile_handle.write("%s = %s" % (str(key), str(value) ) )
                             if self.message_is_error:                           #For error messages, write them to the standard log and then write them to an errors-only log for at-a-glance monitoring of errors
                                 self.errlogfile_handle.write("%s = %s" % (str(key), str(value) ) )
@@ -180,12 +181,19 @@ class CHLog():
             print("Test log file write FAILED")
         return return_value
 
-    def test_database_filewrite(self):
+    def test_sqlite_data_write(self):        #, db_platform=None, db_catalog=None, db_tablename=None
         '''Determine whether a Sqlite database is available for writing.'''
         return_value = True
+        db_platform = "sqlite"
+        db_catalog = os.path.join(self.logfile_dir, "test.db")
+        db_tablename = self.uid + "_" + self.hour_stamp
         try:
-            with open(self.logfile, 'a') as logfile:
-                logfile.write("\nPython log file...testing file write at " + self.hour_stamp + "\n")
+            self.db_conn = sqlite3.connect(db_catalog)
+            cmd = "DROP TABLE IF EXISTS %s;" % (db_tablename) 
+            self.db_conn.execute(cmd)
+            cmd = "CREATE TABLE %s (text varchar(500), uid varchar(14), error_yn int(1));" % (db_tablename) 
+            print("\nIn test_sqlite_data_write(), cmd=%s" % (cmd) )
+            self.db_conn.execute(cmd)
         except IOError:
             return_value = False
         return return_value

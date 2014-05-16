@@ -10,7 +10,7 @@ from FilePath import *
 #******************************************************************************
 class CHUser():
     '''User class handles custom configurations, etc. '''
-    debug = True
+    debug = False
     error_message = None
     uid = None
     stamp = None

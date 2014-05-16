@@ -10,20 +10,29 @@ import csv
 import os 
 from os import path
 
-
-
-
-
 from FilePath import *
 from CHLog import *
+
+#The following libraries are not within the BigMatch repo, so they might be left out of a BigMatch GUI installation or found in an unexpected place.
 current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
-sys.path.append(os.path.join(current, "ch_lib", "sas7bdat_py3"))
 up_one, tail = os.path.split(current)                             #bigmatch
 up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
-sys.path.append(os.path.join(up_two, "etl", "python_common"))     #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
-from Textfile import *
-import sas7bdat
-from sas7bdat import *
+print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
+python_common_found = None
+if os.path.isdir(os.path.join(up_two, "common_functions", "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "etl", "python_common"))     #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Textfile import *
+elif os.path.isdir(os.path.join(up_two, "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "python_common"))                   #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Textfile import *
+sas7bdat_found = None
+if os.path.isdir(os.path.join(current, "ch_lib", "sas7bdat_py3")):
+    sas7bdat_found = True
+    sys.path.append(os.path.join(current, "ch_lib", "sas7bdat_py3"))
+    import sas7bdat
+    from sas7bdat import *	
 
 gl_frame_color = "ivory"
 gl_frame_width = 400
@@ -32,7 +41,7 @@ gl_file_textbox_width = 80
 
 #******************************************************************************************
 class ConvertFile_Model():
-    debug = True
+    debug = False
     error_message = None
     controller = None                       #Controller is the BigMatchController class in main.py 
     logobject = None                        #Instantiation of CHLog class
@@ -124,9 +133,10 @@ class ConvertFile_Model():
         if datadict_file:
             print("\nIn ConvertFile, datadict_file is: %s" % (datadict_file) )
             #top_row_is_header = True                           #TO DO: allow user to check a checkbox indicating that the top CSV row contains column headers.  FOR NOW--If we have a Data Dictionary, then the assumption is that the columns have names. But this is not always the case. 
-        self.converter = Textfile(self.parent_window, self.controller)
-        print("\nAbout to convert CSV file '%s' to text file '%s'" % (source_file, output_file) )
-        self.converter.convert_csv_to_flat_text(source_file, output_file, datadict_file, top_row_is_header)
+        if python_common_found:
+            self.converter = TextFile(self.parent_window, self.controller)
+            print("\nAbout to convert CSV file '%s' to text file '%s'" % (source_file, output_file) )
+            self.converter.convert_csv_to_flat_text(source_file, output_file, datadict_file, top_row_is_header)
 
     def instantiate_view_object(self, container):
         self.view_object = ConvertFile_View(container, self) 
@@ -230,7 +240,7 @@ class ConvertFile_Model():
 
 #******************************************************************************************
 class ConvertFile_View(Frame):
-    debug = True
+    debug = False
     container = None
     #controller = None
     model = None
@@ -240,6 +250,7 @@ class ConvertFile_View(Frame):
         Frame.__init__(self, container)
         self.container = container
         self.model = model		
+        self.debug = self.model.debug		
         #self.controller = controller
         #ONLY ONCE AT INIT, display a blank list for now, knowing that it will be overwritten based on user actions.
         show_grid = False		

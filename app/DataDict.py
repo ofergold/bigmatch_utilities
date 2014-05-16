@@ -12,6 +12,20 @@ from os import path
 import csv
 from FilePath import *
 from CHLog import *
+#The following libraries are not within the BigMatch repo, so they might be left out of a BigMatch GUI installation or found in an unexpected place.
+current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
+up_one, tail = os.path.split(current)                             #bigmatch
+up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
+print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
+python_common_found = None
+if os.path.isdir(os.path.join(up_two, "common_functions", "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "common_functions", "python_common"))     #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Datadict_Common import *
+elif os.path.isdir(os.path.join(up_two, "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "python_common"))                   #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Datadict_Common import *
 
 gl_frame_color = "ivory"
 gl_frame_width = 400
@@ -21,7 +35,7 @@ gl_file_textbox_width = 80
 #******************************************************************************************
 class DataDict_Model():
     class_alias = "datadict"                #Mostly for logging and error handling
-    debug = True
+    debug = False
     error_message = None
     continue_after_error = None             #By default, errors will cause the module to abort and unload. Set continue_after_error to True to override this default.
     abort_all = None                        #By default, an error will kill the currently running module, but will not bring down the whole application (user can still continue working with the Tkinter menu system)
@@ -54,7 +68,7 @@ class DataDict_Model():
         self.controller = controller		#Controller is the BigMatchController class in main.py 
         print("\nIn DataDict._init_, datadict_file_to_load_from = '" + str(self.datadict_file_to_load_from) + "' -- and show_view=" + str(self.show_view))
         self.logobject = CHLog(self.controller.enable_logging)
-        self.logobject.logit("\nIn DataDict._init_: datadict_file_to_load_from = '" + str(self.datadict_file_to_load_from) + "' -- and show_view=" + str(self.show_view), True, True )
+        self.logobject.logit("\nIn DataDict._init_: datadict_file_to_load_from = '" + str(self.datadict_file_to_load_from) + "' -- and show_view=" + str(self.show_view), True, True, True )
         self.title = title
         self.show_view = show_view
         self.datadict_file_to_load_from = datadict_file_to_load_from
@@ -72,13 +86,13 @@ class DataDict_Model():
             frame_height=gl_frame_height		
         if self.check_key_exists("mem_or_rec", **kw):
             self.mem_or_rec = str(kw["mem_or_rec"]).lower().strip()
-        self.test_error_handler()
+        #self.test_error_handler()
 
     def read_datadict_file_into_arrays(self, file_name):  
         '''A data dictionary CSV file is read into arrays (which are properties of this Model object). From the arrays they can be written back to a CSV file later. '''	
         if self.check_for_fatal_error(): return None     #Do not execute this function if error status is severe
-        #self.logobject.logit("\n" + "In DataDict.read_datadict_file_into_arrays, datadict_file_to_load_from = '" + str(file_name) + "'", True, True)
-        print("\n" + "In DataDict.read_datadict_file_into_arrays, datadict_file_to_load_from = '" + str(file_name) + "'", True, True)
+        self.logobject.logit("\n" + "In DataDict.read_datadict_file_into_arrays, datadict_file_to_load_from = '" + str(file_name) + "'", True, True, True)
+        #print("\n" + "In DataDict.read_datadict_file_into_arrays, datadict_file_to_load_from = '" + str(file_name) + "'", True, True)
         self.meta_columns = []
         self.meta_rownums = []
         self.meta_values = []
@@ -92,8 +106,8 @@ class DataDict_Model():
                 if(i==0):                                    #Header row in the CSV file
                     self.meta_columns = line.split(",")
                 else:
-                    meta_temp = line.split(",")             #meta_temp is a LIST consisting of one row from the data dictionary
-                    self.meta_values.append(meta_temp)		#meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.
+                    meta_temp = line.split(",")              #meta_temp is a LIST consisting of one row from the data dictionary
+                    self.meta_values.append(meta_temp)       #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.
                     self.meta_rownums.append(str(i))
                 i += 1
         except:
@@ -118,8 +132,8 @@ class DataDict_Model():
                 self.meta_values_after_edit = self.view_object.retrieve_grid_values()
                 if self.meta_values_after_edit:
                     newrow = []
-                    #self.logobject.logit("Dict file in write_datadict_from_entrygrid(): %s ...File will be deleted if it already exists." % ( str(file_name) ), True, True )
-                    print("Dict file in write_datadict_from_entrygrid(): %s ...File will be deleted if it already exists." % ( str(file_name) ))
+                    if self.debug: self.logobject.logit("Dict file in write_datadict_from_entrygrid(): %s ...File will be deleted if it already exists." % ( str(file_name) ), True, True, True )
+                    #print("Dict file in write_datadict_from_entrygrid(): %s ...File will be deleted if it already exists." % ( str(file_name) ))
                     if os.path.isfile(file_name):
                         os.remove(file_name)		              #Should not need to delete the file, but it has been appending new text at end of file instead of erasing existing text and re-writing-- even though the file open uses "w" not "w+", and it is closed after every write session.
                     with open(file_name, 'w', encoding='UTF8') as csvfile:
@@ -139,16 +153,17 @@ class DataDict_Model():
                         newrow = []
                         i = 0
                         for row in self.meta_values_after_edit:
-                            self.logobject.logit("\n In write_datadict(), ROW: %s (length is %s and type is %s" % (str(i), str(len(row)), str(type(row)) ), True, True)
-                            self.logobject.logit(row, True, True)
+                            if self.debug: 
+                                self.logobject.logit("\n In write_datadict(), ROW: %s (length is %s and type is %s" % (str(i), str(len(row)), str(type(row)) ), True, True, True)
+                                self.logobject.logit(row, True, True, True)
                             rowcheck = ', '.join(row)
                             rowcheck = rowcheck.replace(",", "").replace("'", "").strip()
-                            if self.debug: self.logobject.logit("Rowcheck: %s" % (rowcheck), True, True)
+                            #if self.debug: self.logobject.logit("Rowcheck: %s" % (rowcheck), True, True, True)
                             if rowcheck == "":
-                                if self.debug: self.logobject.logit("ROW IS EMPTY. SKIP IT.", True, True)
+                                #if self.debug: self.logobject.logit("ROW IS EMPTY. SKIP IT.", True, True, True)
                                 continue                  #If row is blank, skip it!
                             else:
-                                if self.debug: self.logobject.logit("Rowcheck populated: %s" % (rowcheck) )
+                                pass #if self.debug: self.logobject.logit("Rowcheck populated: %s" % (rowcheck), True, True, True )
                             newrow = []
                             j = 0
                             for col in row:
@@ -183,7 +198,15 @@ class DataDict_Model():
     def load_standard_datadict_headings(self):
         if self.check_for_fatal_error(): return None     #Do not execute this function if error status is severe
         self.meta_columns = []
-        self.meta_columns = ['column_name', 'start_pos', 'width', 'unique_id_yn', 'matchfield_yn', 'bigmatch_type', 'data_format', 'comments']
+        print("\nIn load_standard_datadict_headings(), loading standard datadict headings")
+        try:
+            ddcommon = Datadict_Common()
+            self.meta_columns = ddcommon.load_standard_datadict_headings(["bigmatch"])        #Pass a LIST object of context keywords to configure the data dictionary for the current context
+            print(self.meta_columns)
+        except:
+            #pass
+            self.meta_columns = ['column_name', 'start_pos', 'width', 'unique_id_yn', 'matchfield_yn', 'bigmatch_type', 'data_format', 'comments']
+        print(self.meta_columns)
         if self.check_for_fatal_error(): return None     #Do not execute this function if error status is severe
         return self.meta_columns
 
@@ -217,6 +240,7 @@ class DataDict_Model():
                 self.view_object.display_datadict_in_grid(**kw_dict)    #When first initiated, the View object will call this during its InitUI() method.  But to refresh it afterwards, call display_datadict_in_grid() explicitly.
                 self.controller.refresh_main_canvas()
         except:
+            raise
             self.error_message = "Error displaying data dictionary"
             exc_type, exc_value, exc_traceback = sys.exc_info()                                                 #sys.exc_inf() returns a 3-item tuple with exception information
             self.controller.handle_error(self.error_message, exc_type, exc_value, exc_traceback, self.continue_after_error, self.abort_all, self.class_alias) #Allow the Bigmatch Controller (main.py) to deal with the error, based on continue_after_error and abort_all.
@@ -285,8 +309,8 @@ class DataDict_Model():
     def update_filepath(self, file_name_with_path='', callback_string='', alias=''):
         '''IMPORTANT: ALL FilePath objects created by this class will expect Function "update_file_path" to exist! FilePath objects alert their masters when a filepath is selected in an open-file dialog.'''
         if self.check_for_fatal_error(): return None     #Do not execute this function if error status is severe
-        #self.logobject.logit("Master DataDict_Model object has gotten the alert: filename is %s and callback_string is '%s'" % (file_name_with_path, callback_string), True, True )
-        print("Master DataDict_Model object has gotten the alert: filename is %s and callback_string is '%s'" % (file_name_with_path, callback_string))
+        self.logobject.logit("Master DataDict_Model object has gotten the alert: filename is %s and callback_string is '%s'" % (file_name_with_path, callback_string), True, True )
+        #print("Master DataDict_Model object has gotten the alert: filename is %s and callback_string is '%s'" % (file_name_with_path, callback_string))
         if callback_string.lower().strip()[:4] == "load" or callback_string.lower().strip()[:4] == "open":
             self.datadict_file_to_load_from = file_name_with_path
             #if file_name_with_path:                        #Commented this out because btnLoadDictFile seems to be unnecessary - we automatically load the Data Dict
@@ -365,7 +389,7 @@ class DataDict_Model():
                 for segment in tb:
                     print("# %s" % (segment) )
                 tb_index += 1
-            self.logobject.logit("\nGMS Calling handle_error with message %s" % (self.error_message) )          #
+            self.logobject.logit("\nGMS Calling handle_error with message '%s'" % (self.error_message) )          #
             self.controller.handle_error(self.error_message, exc_type, exc_value, exc_traceback, self.continue_after_error, self.abort_all, self.class_alias) #Allow the Bigmatch Controller (main.py) to deal with the error, based on continue_after_error and abort_all.
             print("\nEnd of Try-Except block in DataDict")
         finally:
@@ -374,7 +398,7 @@ class DataDict_Model():
 #******************************************************************************************
 #******************************************************************************************
 class DataDict_View(Frame):
-    debug = True
+    debug = False
     container = None
     #controller = None
     model = None
@@ -384,7 +408,8 @@ class DataDict_View(Frame):
     def __init__(self, container, model):
         Frame.__init__(self, container)
         self.container = container
-        self.model = model		
+        self.model = model
+        self.debug = self.model.debug		
         #self.controller = controller
         #ONLY ONCE AT INIT, display a blank list for now, knowing that it will be overwritten based on user actions.
         show_grid = False		
@@ -413,7 +438,7 @@ class DataDict_View(Frame):
         #Make sure the meta_xxx arrays are populated before we instantiate the EntryGrid object
         if not self.model.meta_columns:
             #Default in the standard column headings if they don't already exist:
-            self.model.load_standard_datadict_headings()
+            self.model.load_standard_datadict_headings()     #Get a list of columns to appear in the Data Dict
         if not self.model.meta_rownums:
             self.model.meta_rownums = []
             i = 1
@@ -423,9 +448,11 @@ class DataDict_View(Frame):
                 self.model.meta_rownums.append(i)     #['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20']
         if not self.model.meta_values:
             self.model.meta_values = []
-            for i in range(0, self.num_initial_rows):
-               meta_temp = ['', '', '', '', '', '', '', '']     #number of columns in each row -- MUUST MATCH THE NUMBER ENTERED IN THE DEFAULT COLUMN LIST
-               self.model.meta_values.append(meta_temp)		#meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.
+            for i in range(0, self.num_initial_rows):        #For every row to be displayed...
+               meta_temp = []                                #Load a blank column (cell) to be displayed initially.
+               for col in self.model.meta_columns:
+                   meta_temp.append("")                      # = ['', '', '', '', '']     #! number of columns in each row -- MUST MATCH THE NUMBER ENTERED IN THE DEFAULT COLUMN LIST!
+               self.model.meta_values.append(meta_temp)		 #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.
 			   
         if False:  #self.debug:
             print("\n" + "Type of meta_columns: " + str(type(self.model.meta_columns)) + "...Length is: " + str(len(self.model.meta_columns)) )

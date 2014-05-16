@@ -12,7 +12,20 @@ from os import path
 from FilePath import *
 from DataDict import *
 from CHLog import *
-
+#The following libraries are not within the BigMatch repo, so they might be left out of a BigMatch GUI installation or found in an unexpected place.
+current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
+up_one, tail = os.path.split(current)                             #bigmatch
+up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
+print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
+python_common_found = None
+if os.path.isdir(os.path.join(up_two, "common_functions", "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "etl", "python_common"))     #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Datadict_Common import *
+elif os.path.isdir(os.path.join(up_two, "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "python_common"))                   #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Datadict_Common import *
 gl_frame_color = "ivory"
 gl_frame_width = 400
 gl_frame_height = 100
@@ -299,8 +312,8 @@ class RDBMS_Read_Export_UI_Model():
         return self.view_object	
 
     def copy_datadict_to_class_properties(self):
-        datadict = DataDict_Model(self.parent_window, self.controller)   #BigMatch DataDict class
-        hdr_list = datadict.load_standard_datadict_headings()    #Make sure we are using the standard, updated list of column headings for the Data Dictionary
+        datadict = Datadict_Common()            #Standard DataDict class
+        hdr_list = datadict.load_standard_datadict_headings(["bigmatch"])     #Make sure we are using the standard, updated list of column headings for the Data Dictionary
         datadict = None                         #Erase the class instantiation when done to release memory
         #Check our assumptions about which Data Dictionary column headings are in the standard:		
         if not "column_name" in hdr_list:
@@ -462,7 +475,7 @@ class RDBMS_Read_Export_UI_Model():
         var = StringVar()
         self.sql_text = var
         self.sql_entry_box = Entry(self.button_frame, textvariable=var)
-        self.sql_entry_box.config(width=124, state=NORMAL, background='snow', borderwidth=2)
+        self.sql_entry_box.config(width=100, state=NORMAL, background='snow', borderwidth=2)
         self.sql_entry_box.grid(row=0, column=2, sticky=W)
         self.sql_entry_box.bind(sequence="<Enter>", func=self.handle_sqltext_event)
         self.sql_entry_box.bind(sequence="<Button-1>", func=self.handle_sqltext_event)
@@ -473,7 +486,7 @@ class RDBMS_Read_Export_UI_Model():
         lblblank.config(width=8, background=self.bgcolor, font=("Arial", 10, "bold"), borderwidth=0, padx=3, pady=3)
         lblblank.grid(row=0, column=3, sticky=W)
         #Button to launch the conversion process:
-        self.btnSaveToFile = Button(self.button_frame, text="Display data", width=30, command=self.display_data) 
+        self.btnSaveToFile = Button(self.button_frame, text="Display data", width=20, command=self.display_data) 
         self.btnSaveToFile.grid(row=0, column=4, sticky=W)
         self.btnSaveToFile.config(state=DISABLED)       #Do not enable this button unless the user has selected a data source
         self.btnSaveToFile.config(padx=4, pady=4) 
@@ -571,7 +584,7 @@ class RDBMS_Read_Export_UI_Model():
 
 #******************************************************************************************
 class RDBMS_Read_Export_UI_View(Frame):
-    debug = True
+    debug = False
     container = None
     #controller = None
     model = None
@@ -642,8 +655,8 @@ class RDBMS_Read_Export_UI_View(Frame):
         for item in self.model.sql_result_as_single_string:
             if ix >= self.start_row and countrow <= self.rows_to_display:        #We display only one batch at a time (batch is defined by StartRow and Rows_to_Display)
                 self.data_rowid = item[0]
-                self.model.logobject.logit("\nRow %s is between %s and %s so it will be displayed. data_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.data_rowid ), True, True )
-                print("\nRow %s is between %s and %s so it will be displayed. data_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.data_rowid ) )
+                if self.debug: self.model.logobject.logit("\nRow %s is between %s and %s so it will be displayed. data_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.data_rowid ), True, True, True )
+                #if self.debug: print("\nRow %s is between %s and %s so it will be displayed. data_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.data_rowid ) )
                 vert_position = self.get_widgetstack_counter()
                 label_text = ""
                 #(1) Text box to display the row number
@@ -659,7 +672,7 @@ class RDBMS_Read_Export_UI_View(Frame):
                 kw_txtbox["foreground"] = "black"
                 kw_txtbox["disabledforeground"] = "black"
                 curvalue = str(item[1]) 
-                print("Row Value: %s" % (curvalue) )
+                if self.debug: self.logobject.logit("Row Value: %s" % (curvalue), True, True, True )
                 control_name = "data_" + str(ix)
                 txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, self.rowtype, **kw_txtbox)
                 countrow += 1

@@ -228,10 +228,10 @@ class TextFile():
             self.error_message = "Expected item 'start_pos' to be in Data Dictionary header row"
         if not "width" in hdr_list:
             self.error_message = "Expected item 'width' to be in Data Dictionary header row"
-        if not "unique_id" in hdr_list:
-            self.error_message = "Expected item 'unique_id' to be in Data Dictionary header row"
-        if not "bigmatch_format" in hdr_list:
-            self.error_message = "Expected item 'bigmatch_format' to be in Data Dictionary header row"
+        if not "unique_id_yn" in hdr_list:
+            self.error_message = "Expected item 'unique_id_yn' to be in Data Dictionary header row"
+        if not "bigmatch_type" in hdr_list:
+            self.error_message = "Expected item 'bigmatch_type' to be in Data Dictionary header row"
         if self.error_message:
             print("\n \n ERROR: " + self.error_message)
         self.build_dict_of_datadict_column_headers(hdr_list)
