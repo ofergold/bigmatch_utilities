@@ -24,7 +24,7 @@ class MatchReview_Model():
     first, all values form the BigMatch result file (which can have 100,000+ rows in some cases) are loaded into self.meta_values.
     But we display only 30 rows at a time on screen. The user can scroll from page to page, looking for the cutoff between acceptable and non-acceptable matches.
     '''
-    debug = False
+    debug = True
     error_message = None
     parent_window = None                    #Parent_window is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
@@ -166,10 +166,13 @@ class MatchReview_Model():
                         print("Exact match: %s -|- %s" % (recmatches, memmatches) ) 
                         exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(maxlen+10), " | ", id_mem, memmatches.ljust(maxlen+10)) )
                     else:                 #NOT exact matches - store these in the meta_values array
+                        accept_wgt = accept_usr = 0                                   #accept_wgt and accept_usr flags will track rows which the user has ACCEPTED via a weight cutoff threshold (above which rows are "accepted" or an explicit selection by user click of a checkbox)
                         if self.debug: print("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches) )
+                        #**************************************************************************************************************
                         #Populate the meta_values array (list of lists) that will be used to populate the Entry Grid
-                        meta_temp = [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid]     #meta_temp is a LIST consisting of one row from the Review File
+                        meta_temp = [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr]     #meta_temp is a LIST consisting of one row from the Review File
                         self.meta_values.append(meta_temp)		          #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.\
+                        #**************************************************************************************************************
                         #print("\n -- ROW %s" % (count) )
                         #print("rec: %s" % (recmatches) )
                         #print("mem: %s" % (memmatches) )
@@ -188,27 +191,6 @@ class MatchReview_Model():
             self.meta_rownums.append(str(i))        #Display row numbers in the Entry Grid
         self.meta_columns = ["Record file data values", "Memory file data values"]'''
 
-    def write_accepted_pairs(self):
-        '''After the user has "accepted" the rows (checked boxes for all rows where Record file and Memory file matching-field-values appear to confirm that the two records represent the same entity),
-        write the matching-field-value strings to a text file'''
-        if not self.matchreview_file_to_save_to or not self.controls or not self.meta_values:
-            return
-        with open(self.matchreview_file_to_save_to, "w") as f: 
-            i = 0
-            chkvalue = ""
-            for item in self.meta_values:                       #meta_values is a list of dicts storing the content from the two files that were matched (components: blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid)
-                meta_rowid = item[6]                            #item[6] is "meta_rowid"
-                for control in self.controls:                   #self.controls is a list of the screen controls
-                    #print("Seeking meta_rowid %s, found %s... type: %s" % (meta_rowid, control.meta_rowid, str(control.control_type).lower().strip()) )
-                    if control.meta_rowid == meta_rowid and str(control.control_type).lower().strip()=="checkbox":
-                        chkvalue = control.value_object.get()
-                        if self.debug: print("Checkbox with meta_rowid %s and weight %s has value: %s" % (control.meta_rowid, item[1], chkvalue) )
-                        break
-                if str(chkvalue) == "1":
-                    f.write("%s %s %s %s \n" % (item[0], item[1], item[2], item[3] ) )
-                i += 1
-            f.close()
-        
     def sort_list(self):
         '''Sort the list by match-weight'''
         print("\n Sorting the values list")
@@ -260,13 +242,17 @@ class MatchReview_Model():
     def display_user_buttons(self, container):
         '''Function display_user_buttons shows one or more buttons near top of page for common user functions, so the user doesn't need to constantly hit the system menus. '''
         self.button_frame = Frame(container)
+        self.button_frame2 = Frame(container)
         if str(type(container)).lower().find(".tk") == -1:							#For testing, we might display this object directly in the Tkinter main window.  If this is the case, then don't call get_widget_position().
             stackslot = container.get_widget_position(self.button_frame, "MatchReview_Model.display_user_buttons()")
         else:
             stackslot = 0
         self.button_frame.grid(row=stackslot, column=0, sticky=EW)
         self.button_frame.configure(background=self.bgcolor, padx=4, pady=1)
-		
+        #We need a second button frame for this module
+        stackslot = container.get_widget_position(self.button_frame, "MatchReview_Model.display_user_buttons_2()")
+        self.button_frame2.grid(row=stackslot, column=0, sticky=EW)
+        self.button_frame2.configure(background=self.bgcolor, padx=4, pady=1)
         #self.btnDisplayAllFiles = Button(self.button_frame, text="View all files from this batch", width=24, command=self.load_combined_files)
         #self.btnDisplayAllFiles.grid(row=0, column=1, sticky=W)
         #self.btnDisplayAllFiles.configure(state=DISABLED)       #Do not enable this button unless the user has selected MatchReview files
@@ -286,33 +272,56 @@ class MatchReview_Model():
         self.btnSortAsc = Button(self.button_frame, text="Sort Ascending", width=16, command=self.sort_list_ascending)
         self.btnSortAsc.grid(row=0, column=3, sticky=W)
         self.btnSortAsc.configure(state=DISABLED, padx=4, pady=1)            #Disable this button if the list is already sorted Ascending
+        
+        #Second user_buttons frame to hold weight-based manipulations
+        #User can jump to rows with a specific weight here.
+        self.lblJumpToWeight = Label(self.button_frame2, text="Jump to weight: ")
+        self.lblJumpToWeight.grid(row=0, column=0, sticky=W) 
+        self.lblJumpToWeight.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
+
+        self.jump_to_weight = StringVar(self.button_frame2)
+        self.jump_to_weight.set(8)                      #If no rows are found with this weight, the next highest weight found will be used. If none found, then no action.
+        self.jump_to_weight.trace("w", self.catch_jump_to_weight_change)
+        txtJumpTo = Entry(self.button_frame2)
+        txtJumpTo.grid(row=0, column=1, sticky=W)
+        txtJumpTo.config(textvariable=self.jump_to_weight, background=self.bgcolor, width=5)
+        txtJumpTo.bind(sequence="<FocusOut>", func=self.handle_jump_to_weight)
+        txtJumpTo.bind(sequence="<Return>", func=self.handle_jump_to_weight)
+        #txtJumpTo.bind(sequence="<ButtonRelease-1>", func=self.handle_jump_to_weight)
+        
+        #User can set the threshold for ACCEPTANCE here.
+        self.lblAcceptAbove = Label(self.button_frame2, text="Accept above: ")
+        self.lblAcceptAbove.grid(row=0, column=2, sticky=W) 
+        self.lblAcceptAbove.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
 		
-        self.lblAcceptAbove = Label(self.button_frame, text="Accept above: ")
-        self.lblAcceptAbove.grid(row=0, column=4, sticky=W) 
-        self.lblAcceptAbove.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=11, anchor=E, padx=4, pady=1)
-		
-        '''self.accept_threshold = StringVar(self.button_frame)
+        '''self.accept_threshold = StringVar(self.button_frame2)
         self.accept_threshold.set(10)
-        spn = Spinbox(self.button_frame, from_=0, to=30)
+        spn = Spinbox(self.button_frame2, from_=0, to=30)
         spn.grid(row=0, column=5, sticky=W)
         spn.config(textvariable=self.accept_threshold, background=self.bgcolor, width=5)
         spn.bind(sequence="<FocusOut>", func=self.spinhandler)
         spn.bind(sequence="<Return>", func=self.spinhandler)
         spn.bind(sequence="<ButtonRelease-1>", func=self.spinhandler)
         '''
-        self.accept_threshold = StringVar(self.button_frame)
+        self.accept_threshold = StringVar(self.button_frame2)
         self.accept_threshold.set(10)
         self.accept_threshold.trace("w", self.catch_threshold_change)
-        spn = Entry(self.button_frame)
-        spn.grid(row=0, column=5, sticky=W)
+        spn = Entry(self.button_frame2)
+        spn.grid(row=0, column=3, sticky=W)
         spn.config(textvariable=self.accept_threshold, background=self.bgcolor, width=5)
         spn.bind(sequence="<FocusOut>", func=self.spinhandler)
         spn.bind(sequence="<Return>", func=self.spinhandler)
         spn.bind(sequence="<ButtonRelease-1>", func=self.spinhandler)
         
-        self.btnSaveToDictFile = Button(self.button_frame, text="Write accepted pairs to file", width=20, command=self.write_accepted_pairs)
-        self.btnSaveToDictFile.grid(row=0, column=6, sticky=W)
+        self.btnSaveToDictFile = Button(self.button_frame2, text="Write accepted pairs to file", width=20, command=self.write_accepted_pairs)
+        self.btnSaveToDictFile.grid(row=0, column=4, sticky=W)
         self.btnSaveToDictFile.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected a MatchResults file to save as
+
+        #Create a message region to display notifications to the user
+        self.message_region = Message(self.button_frame2, text="")              
+        self.message_region.grid(row=0, column=5, sticky=E)
+        kw = {"anchor":E, "width":800, "foreground":"dark green", "background":self.bgcolor, "borderwidth":1, "font":("Arial", 12, "bold"), "padx":8, "pady":3 }  
+        self.message_region.configure(**kw)
 
     def display_advanced_buttons(self, container):
         '''Function display_advanced_buttons shows advanced features IF the user is authorized and explicitly chooses to open this panel.. '''
@@ -342,6 +351,45 @@ class MatchReview_Model():
         self.optSortBy.grid(row=0, column=3, sticky=W)
         self.optSortBy.config(font=('calibri',(9)), bg='light grey', width=18, padx=4, pady=1)
         self.optSortBy['menu'].config(background=self.bgcolor, font=("calibri",(11))) 
+
+    def handle_jump_to_weight(self, parm=None):
+        if not self.meta_values or not self.view_object:
+            return
+        print("\nJumpToWeight: %s" % (self.jump_to_weight.get()) )
+        if not self.jump_to_weight.get():
+            return
+        try:
+            desired_weight = float(self.jump_to_weight.get())
+            self.logobject.logit("\nIn handle_jump_to_weight(), desired_weight is %s, sort_asc_or_desc is %s" % (desired_weight, self.sort_asc_or_desc), True, True, True )
+            i = 0
+            new_start_row = 0
+            for item in self.meta_values:                       #meta_values is a list of lists storing the content from the two files that were matched (components: blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid)
+                if self.debug: self.logobject.logit("Next weight %s. Greater than %s? %s. Lower than %s? %s" % (item[1], desired_weight, float(str(item[1])) >= desired_weight, desired_weight, float(str(item[1])) <= desired_weight), True, True, True )
+                if self.sort_asc_or_desc.lower().strip() == "asc":              #List is currently sorted ASCENDING
+                    if float(str(item[1])) >= desired_weight:       #item[1] is the match weight for this row.  #This row has a weight greater than or equal to the weight that the user wants to "jump to" in the list. So set this row as the "Start Row" for viewing a block of 30 records on screen.
+                        new_start_row = i
+                        break
+                elif self.sort_asc_or_desc.lower().strip() == "desc":            #List is currently sorted ASCENDING
+                    if float(str(item[1])) <= desired_weight:       #item[1] is the match weight for this row.  #This row has a weight greater than or equal to the weight that the user wants to "jump to" in the list. So set this row as the "Start Row" for viewing a block of 30 records on screen.
+                        if self.debug: self.logobject.logit("\nFound a weight lower than the target weight: %s. New start row will be %s" % (float(str(item[1])), i), True, True, True )
+                        new_start_row = i
+                        break
+                i += 1 
+            if new_start_row:
+                self.view_object.start_row = new_start_row
+                if self.debug: self.logobject.logit("New start item after jump-to-weight: %s" % (new_start_row), True, True, True )
+            else: 
+                self.view_object.start_row = i - 1
+                if self.debug: self.logobject.logit("Jump-to-weight not found in list. Defaulting to: %s. Check self.view_object.start_row: %s" % (i, self.view_object.start_row), True, True, True )
+            self.view_object.repopulate_grid()
+            self.enable_disable_buttons()
+        except:
+            if self.debug:
+                raise
+    
+    def catch_jump_to_weight_change(self, val1=None, val2=None, val3=None, val4=None):
+        print("\n\nJUMP-TO-WEIGHT VAR CHANGED - parms are %s %s %s" % (val1, val2, val3) )
+        self.handle_jump_to_weight()
 
     def catch_threshold_change(self, val1=None, val2=None, val3=None, val4=None):
         print("\n\nTHRESHOLD VAR CHANGED - parms are %s %s %s" % (val1, val2, val3) )
@@ -381,10 +429,52 @@ class MatchReview_Model():
             i += 1
         self.view_object.container.refresh_canvas()
 
+    def write_accepted_pairs(self):
+        '''After the user has "accepted" the rows (set a threshold weight above which records should be written
+        or checked boxes for all rows where Record file and Memory file matching-field-values appear to confirm that the two records represent the same entity),
+        write the matching-field-value strings to a text file'''
+        if not self.matchreview_file_to_save_to or not self.controls or not self.meta_values:
+            return
+        try:
+            with open(self.matchreview_file_to_save_to, "w") as f: 
+                i = 0
+                chkvalue = control_found = ""
+                for item in self.meta_values:                       #meta_values is a list of dicts storing the content from the two files that were matched (components: blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid)
+                    control_found = ""
+                    self.logobject.logit("meta_rowid %s has weight %s. Include? %s" % (item[6], item[1], float(str(item[1])) >= float(self.accept_threshold.get()) ), True, True, True )
+                    if float(str(item[1])) >= float(self.accept_threshold.get()):       #item[1] is the match weight for this row
+                        chkvalue = "1"                              #By default, this row should be written to the results, by virtue of its high match weight (above the user-designated threshold)
+                    #Now check the currently-displayed rows to make sure this row is still "checked" - the user might have unchecked it.
+                    meta_rowid = str(item[6])                       #item[6] is "meta_rowid"
+                    if True:        #TO DO: assign each row in meta_values an index that will change as the list is re-sorted, so that we can tell at any time where this item is positioned in the list. This would allow us to know whether this row is currently displayed on screen, without looping thru the CONTROLS collection.
+                        for control in self.controls:               #self.controls is a list of the screen controls
+                            #if self.debug: self.logobject.logit("Seeking meta_rowid %s, found %s... type: %s" % (meta_rowid, control.meta_rowid, str(control.control_type).lower().strip() ), True, True, True )
+                            if str(control.meta_rowid) == meta_rowid and str(control.control_type).lower().strip()=="checkbox":
+                                chkvalue = control.value_object.get()
+                                if self.debug: self.logobject.logit(" Checkbox with meta_rowid %s and weight %s has value: %s (user might have un-checked). Include? %s" % (control.meta_rowid, item[1], chkvalue, str(chkvalue) == "1" ), True, True, True )
+                                control_found = True
+                                break
+                    if self.debug and not control_found: self.logobject.logit("(control was not found for this item -- only 30 rows are displayed in screen controls at a time)", True, True, True)
+                    #Write this row to the ACCEPTED results file
+                    if str(chkvalue) == "1": 
+                        f.write("%s %s %s %s \n" % (item[0], item[1], item[2], item[3] ) )
+                    i += 1
+                f.close()
+        except:
+            if self.debug: 
+                raise
+
     def change_sort_column(self, var):
         print("\n in change_sort_column(), var='%s'" % (str(var.get()) ) )
         self.sort_column = str(var.get()).lower().strip().replace(" ", "_")      #"weight"
         self.sort_list()
+
+    def update_message_region(self, text='', clear_after_ms=5000, **kw):
+        self.message_region.configure(text=text)
+        self.message_region.after(clear_after_ms, self.clear_message_region)
+		
+    def clear_message_region(self):
+        self.message_region.configure(text="")
 
     def update_filepath(self, file_name_with_path='', callback_string='', alias=''):
         '''IMPORTANT: ALL FilePath objects created by this class will expect Function "update_file_path" to exist! FilePath objects alert their masters when a filepath is selected in an open-file dialog.'''
@@ -663,7 +753,7 @@ class MatchReview_Model():
             self.handle_error()
             return
         if self.view_object is not None:
-            print("\n About to SCROLL THE PAGE")
+            self.logobject.logit("\n About to SCROLL THE PAGE", True, True, True)
             self.view_object.start_row = self.view_object.start_row + self.view_object.rows_to_display
             if self.view_object.start_row >= len(self.meta_values):
                 self.view_object.start_row = (len(self.meta_values) +1 - self.view_object.rows_to_display)
@@ -676,7 +766,7 @@ class MatchReview_Model():
             self.handle_error()
             return
         if self.view_object is not None:
-            print("\n About to SCROLL THE PAGE BACKWARDS")
+            self.logobject.logit("\n About to SCROLL THE PAGE BACKWARDS", True, True, True)
             self.view_object.start_row = self.view_object.start_row - self.view_object.rows_to_display
             if self.view_object.start_row < 0:
                 self.view_object.start_row = 0
@@ -686,15 +776,15 @@ class MatchReview_Model():
 		
     def debug_display_arrays(self):
         i = 0
-        print("self.meta_values:")
+        self.logobject.logit("self.meta_values:", True, True, True)
         for val in self.meta_values:
-            print(str(i) + "  " + str(val))
+            self.logobject.logit(str(i) + "  " + str(val), True, True, True)
             i += 1
 
         i = 0
-        print("self.controls:")
+        self.logobject.logit("self.controls:", True, True, True)
         for control in self.controls:
-            print("%s) Row: %s, Col: %s, Name: %s, Type: %s" % ( i, control.row_index, control.col, control.ref_name, control.control_type ))
+            self.logobject.logit("%s) Row: %s, Col: %s, Name: %s, Type: %s" % ( i, control.row_index, control.col, control.ref_name, control.control_type ), True, True, True)
             i += 1
 
     def check_key_exists(self, keyvalue, **kw):
@@ -730,6 +820,7 @@ class MatchReview_View(Frame):
     meta_rowid = None       #Meta_rowid is a unique identifier (autonum) for each row of self.meta_values, the main array.  It is stored in column 4 (fifth column) in the list.
     kw_fresult = {}         #Configuration for the frames that display comparison values
     resultrow_frames_initialized = None
+    jump_to_weight = None
 
     def __init__(self, container, model=None, pass_index=None, show_view=None):
         Frame.__init__(self, container)
@@ -768,7 +859,7 @@ class MatchReview_View(Frame):
             if i < self.rows_to_display:
                 self.rowconfigure(0, pad=2)
         #Frame Title:
-        self.model.logobject.logit("\n In matchreview_view.initUI: About to display main MatchReview frame title", True, True)
+        self.model.logobject.logit("\n In matchreview_view.initUI: About to display main MatchReview frame title", True, True, True)
         widgetspot = self.get_widgetstack_counter()
         self.label_object = Label(self, text=self.model.title)    #+ " #" + str(self.pass_index +1))
         self.label_object.grid(row=widgetspot, column=0, columnspan=7, sticky=EW)
@@ -883,8 +974,11 @@ class MatchReview_View(Frame):
                 ix += 1
                 self.row_index += 1 
                 
+        #Display a temporary message notifying the user that their file was created.
+        self.model.update_message_region("NOTE: exact matches are not displayed here, but have been saved to a file ending with _EXACT.dat")
         self.grid_initialized = True
         self.container.refresh_canvas()
+        if self.debug: self.model.debug_display_arrays()   #View the Meta_Values and Controls arrays
 
     def get_weight_color(self, weight, holdweight=None, schema=None):
         weight_color = ""
@@ -933,7 +1027,7 @@ class MatchReview_View(Frame):
                 col = control.col
                 row = control.row_index
                 control_type = str(control.control_type).lower().strip()		
-                if self.debug: print("CLEARING: Col: %s Row: %s Type: %s" % ( str(control.col), str(control.row_index), control_type ) )
+                #if self.debug: print("CLEARING: Col: %s Row: %s Type: %s" % ( str(control.col), str(control.row_index), control_type ) )
                 control.meta_rowid = None         #Important because if associated with a row in Meta_Values, this control will take on the ACCEPTED status of that row in Meta_Values -- if that Meta row has a weight above the current user-specified threshold, then the checkbox will remain checked even if all the controls' displays for this row have been set to blanks.
                 control.blocking_pass = ""				
                 value = ""
@@ -946,7 +1040,7 @@ class MatchReview_View(Frame):
                 #control.object.grid(column=col, row=row)       #We don't need to re-create or re-position the control
         #The actual comparison values to be reviewed are NOT included in self.model.controls, because they are complex frame objects different from simple text boxes.
         for frame_and_its_labels in self.model.result_comparison_frames_in_grid:        #frame_and_its_labels = [frame, mem_or_rec, gridrow, gridcolumn, labels_and_stringvars_for_frame]
-            if self.debug: self.model.logobject.logit("In clear_grid, gridrow=%s, gridcolumn=%s, mem_or_rec=%s" % (frame_and_its_labels[2], frame_and_its_labels[3], frame_and_its_labels[1]), True, True, True )
+            #if self.debug: self.model.logobject.logit("In clear_grid, gridrow=%s, gridcolumn=%s, mem_or_rec=%s" % (frame_and_its_labels[2], frame_and_its_labels[3], frame_and_its_labels[1]), True, True, True )
             for lblpair in frame_and_its_labels[4]:             #frame_and_its_labels[4] holds 10 Tkinter label objects plus the 10 StringVars that hold the labels' values
                 stringvar = lblpair[1]                          #lblpair[1] is the StringVar that holds the Label object's value
                 if lblpair[1].get():
@@ -1192,7 +1286,7 @@ class MatchReview_View(Frame):
                 #Memfile_values and Recfile_values are BOTH passed to the display function, because we need to compare them against each other to determine the colors to be used in displaying the values.
                 self.recfile_values_for_current_row = ""                           
                 self.memfile_values_for_current_row = ""
-                self.meta_rowid = item[6]              #RowId is the 7th item in the dict
+                self.meta_rowid = item[6]              #RowId is the 7th item in the list
                 if self.debug: self.model.logobject.logit("Repopulating: Row %s is between %s and %s so it will be displayed. Meta_rowid=%s, bp=%s, weight=%s, recvalues=%s, memvalues=%s" % (ix, self.start_row, ( int(self.start_row) + int(self.rows_to_display) ), self.meta_rowid, str(item[0]), str(item[1]), str(item[2]), str(item[3]) ), True, True, True )
                 #Checkbox:
                 col = 0

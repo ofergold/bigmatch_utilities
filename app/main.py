@@ -100,7 +100,7 @@ class BigMatchController():
         self.parent_window.title("BigMatch configuration")   #parent window title
         self.parent_window.columnconfigure(0, weight=0, pad=3)
         self.parent_window.rowconfigure(0, weight=0, pad=3)
-        self.host_name = socket.gethostname()
+        self.host_name = str(socket.gethostname()).lower().strip()
         self.uid = getpass.getuser().lower().strip()
         print("\n--------------------------------------------------------------------------------")
         print("\n STARTING NEW SESSION. hostname: %s, user: %s" % (self.host_name, getpass.getuser() ) )
@@ -113,12 +113,12 @@ class BigMatchController():
         self.sqlite_found = sqlite_found
         print("\nPython_common_found? %s" % (self.python_common_found) )
         print("\n os_name: %s, os_platform: %s, os_release: %s" % (self.os_name, self.os_platform, self.os_release) )
-        if self.host_name.upper().strip() == "CHRSD1-GSANDERS" and self.uid == "gsanders":
+        if (self.host_name == "chrsd1-gsanders" and self.uid == "gsanders"):
             self.enable_logging = True
-        elif self.host_name.upper().strip() == "GREGORY" and self.uid == "lisa":
+        elif (self.host_name == "greg-hp" and self.uid == "greg") or (self.host_name == "gregory" and self.uid == "lisa"):
             self.enable_logging = True
         if self.enable_logging:
-            #"Enable logging" does not mean the user has the necessary file/folder permissions. But from the BigMatch GUI standpoint, this user can write logs if the permissions are in place.
+            #"Enable logging" does not mean the user has the necessary file/folder permissions. But from the GUI rules standpoint, this user can write logs if the permissions are in place.
             print("Logging enabled (by user ID)")
             #Make sure we can actually write to a file (file/folder permissions support logging)
             self.logobject = CHLog(self.enable_logging, self.enable_logging)    

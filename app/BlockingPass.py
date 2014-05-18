@@ -964,13 +964,13 @@ class BlockingPass_Model():
 		
         self.btnDisplayBlkpasses = Button(self.button_frame, text="Display blocking passes", width=30, command=self.display_views)
         self.btnDisplayBlkpasses.grid(row=0, column=0, sticky=W)
-        self.btnDisplayBlkpasses.configure(state=DISABLED)       #Do not enable this button unless the user has selected Data Dictionary files
+        self.btnDisplayBlkpasses.configure(state=DISABLED)        #Do not enable this button unless the user has selected Data Dictionary files
         #self.btnLoadParmFile = Button(self.button_frame, text="Load parameter file", width=30, command=self.enable_parmfile_load)
         #self.btnLoadParmFile.grid(row=0, column=1, sticky=W)
         #self.btnLoadParmFile.configure(state=DISABLED)           #Do not enable this button unless the user has selected s ParmF file to load
         self.btnSaveToParmFile = Button(self.button_frame, text="Save blocking info to parameter file", width=30, command=self.create_parmf_file_from_blocking_passes)
         self.btnSaveToParmFile.grid(row=0, column=2, sticky=W)
-        self.btnSaveToParmFile.configure(state=DISABLED)         #Do not enable this button unless the user has selected a ParmF file to save to
+        self.btnSaveToParmFile.configure(state=DISABLED)          #Do not enable this button unless the user has selected a ParmF file to save to
         #self.b3 = Button(self.button_frame, text="View control values", width=25, command=self.display_control_values)
         #self.b3.grid(row=0, column=3, sticky=W)
         #self.b6 = Button(button_frame, text="Remove me", width=25, command=self.remove_widget)
@@ -979,7 +979,7 @@ class BlockingPass_Model():
         #self.b9.grid(row=0, column=3, sticky=W)
         #Create a Message Region where we can display text temporarily, such as "File was successfully saved"
         msg = ""                       #Testing 123456789012345678901234567890123456789012345678901234567890"
-        self.message_region = Message(self.button_frame, text=msg) #self.message_region = Label(self.button_frame, text=msg)
+        self.message_region = Message(self.button_frame, text=msg) 
         self.message_region.grid(row=0, column=5, sticky=E)
         kw = {"anchor":E, "width":800, "foreground":"dark green", "background":self.bgcolor, "borderwidth":1, "font":("Arial", 12, "bold"), "padx":8, "pady":3 }  
         self.message_region.configure(**kw)
