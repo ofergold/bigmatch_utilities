@@ -1,0 +1,95 @@
+# gitignore for bigmatch_utilities
+
+*.dat
+*.sas7bdat
+
+backups/
+config/
+datadicts/
+errors/
+logs/
+matchpairs/
+parmfiles/
+
+/bigmatchgui/backups/*.*      # ignore all files in the backups/ directory
+bigmatchgui/backups/          # ignore all files in the backups/ directory
+
+/bigmatchgui/config/*.*       # ignore all files in the config/ directory
+bigmatchgui/config/           # ignore all files in the config/ directory
+
+/bigmatchgui/datadicts/*.*    # ignore all files in the datadicts/ directory
+bigmatchgui/datadicts/        # ignore all files in the datadicts/ directory
+
+/bigmatchgui/errors/*.*       # ignore all files in the errors/ directory
+bigmatchgui/errors/           # ignore all files in the errors/ directory
+errors/                       # ignore all files in the errors/ directory
+errors/*.*                    # ignore all files in the errors/ directory
+/bigmatchgui/errors/*.dic     # ignore all files in the errors/ directory
+
+/bigmatchgui/logs/*.*         # ignore all files in the logs/ directory
+
+/bigmatchgui/matchpairs/*.*   # ignore all files in the matchpairs/ directory
+
+/bigmatchgui/parmfiles/*.*    # ignore all files in the parmfiles/ directory
+bigmatchgui/parmfiles/        # ignore all files in the parmfiles/ directory
+
+#/samplematch/*.*
+
+#*********************************************************************************************************************************************
+# The following are recommended gitignore files for Python apps, taken from https://github.com/github/gitignore/blob/master/Python.gitignore
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+bin/
+build/
+develop-eggs/
+dist/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+
+# Translations
+*.mo
+
+# Mr Developer
+.mr.developer.cfg
+.project
+.pydevproject
+
+# Rope
+.ropeproject
+
+# Django stuff:
+*.log
+*.pot
+
+# Sphinx documentation
+docs/_build/
+
+

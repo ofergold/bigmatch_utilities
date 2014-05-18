@@ -1,0 +1,5 @@
+column_name,start_pos,width,unique_id_yn,matchfield_yn,bigmatch_type,data_format,comments
+gmstest1 ,1,3,y,,,,
+gstest2,4,10,,,,,
+gstest3,14,8,,,,,
+gstest4,22,14,,,,,

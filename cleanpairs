@@ -1,0 +1,51 @@
+#!/bin/sh
+
+# Check for arguments giving the memfile and recfile names, or ask the user to enter these names
+
+if [ "$1" ]
+then
+	MEMFILE=$1
+else
+	echo "Enter the memory file name as it appears before the - in the output files" && read MEMFILE
+fi
+if [ "$2" ]
+then
+	RECFILE=$2
+else
+	echo "Enter the record file name as it appears after the - in the output files" && read RECFILE
+fi
+
+# Request the number of blocking passes to consider
+
+echo "Enter the total number of blocking passes"
+read MAXPASS
+
+# For each pass, create sorted pairs and keys dataset.  Append keys into master dataset.
+
+P=0
+touch keys.dat
+
+while [ $P -lt $MAXPASS ]
+do
+<<<<<<< HEAD
+	sort -r ${MEMFILE}-${RECFILE}Pairs_0$P.dat > sortedpairs$P.dat
+=======
+	if [ $P -ge 10 ]
+	then
+		W=$P
+	else
+		W=0$P
+	fi
+	sort -r ${MEMFILE}-${RECFILE}Pairs_$W.dat > sortedpairs$P.dat
+>>>>>>> 1d6e65fe4926f2bfa857ded56ef49e5474dcf766
+	cut -c 1-28 sortedpairs$P.dat > firstcols.dat
+	sed "s/$/ Pass_$P/" firstcols.dat > keys$P.dat
+	rm firstcols.dat
+	cat keys.dat keys$P.dat > keysint.dat
+	rm keys.dat
+	mv keysint.dat keys.dat 
+	rm keys$P.dat
+	P=`expr $P + 1`
+done
+
+
