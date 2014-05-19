@@ -42,10 +42,11 @@ class MatchReview_Model():
     matchreview_file_to_save_to = None		 #Data dictionary file name and path, to which the metadata will be saved if user requests.
     exact_match_output_file = None           #Automatically create a file of exact matches for every blocking pass, so that we can generate statistics and so the user can view matches if desired.
     combined_matchreview_file = None	     #The user navigates to a .dat file, but can choose to combine it with ALL files in the same folder with the same name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
+    combined_exact_accepted_file = None      #Combined matched pairs (exact and accepted) for all passes in a batch
     allow_view_combined_files = False        #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
     viewing_one_or_all_files = None          #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix, this flag switches from "ONE" to "ALL"
     result_filename_trunc = None             #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
-    match_files_for_batch = None             #Files that will be combined into self.combined_matchreview_file
+    match_files_for_batch = None             #Files that will be combined into self.combined_matchreview_file or combined_exact_accepted_file
     filepathobj_load_from = None             #FilePath object to allow user to select a file
     filepathobj_save_to = None               #FilePath object to allow user to select a file
     matchreview_views = []
@@ -57,6 +58,10 @@ class MatchReview_Model():
     recfile_values_for_current_row = None    #Method create_resultrow_frame() uses this property because it needs access to BOTH rec and memfile values simultaneously (which is not feasible when looping thru the controls separately)
     memfile_values_for_current_row = None    #Method create_resultrow_frame() uses this property because it needs access to BOTH rec and memfile values simultaneously (which is not feasible when looping thru the controls separately)
     result_comparison_frames_in_grid = []    #List of frame objects that can be populated with text for clerical review comparisons.
+    no_delimiters_in_result_file = None      #Some users might not want field delimiters embedded in the result file
+    write_descrips_in_result_file = None     #Some users might want column descriptions embedded in the result file
+    max_length_matching_text = 0             #In order to produce justified output files, we need to know how to line up the columns (depends on the max.width of the text in this particular file)
+    length_matching_text_column = 0          #In order to produce justified output files, we need to know how to line up the columns (depends on the max.width of the text in this particular file)
 
     def __init__(self, parent_window, controller, title="Linkage results -- review", bgcolor=gl_frame_color, frame_width=gl_frame_width, frame_height=gl_frame_height):	
         self.parent_window = parent_window  #Parent_wiondow is the TKinter object itself (often known as "root"
@@ -112,12 +117,15 @@ class MatchReview_Model():
         if self.memvalues_file is None:
             ext = matchreview_file.lower().strip()[-4:]
             self.memvalues_file = matchreview_file.lower().strip().replace(ext, "_memflmatches" + ext)'''
+        #Run through a small number of rows to estimate the width of the match file text
+        sep = "?   ~"                        #In the BigMatch results files, this string separates the first column (weight and unique ID) from the blocking and matching field values.
+        self.length_matching_text_column = self.est_length_of_matchfile_text(matchreview_file, sep)
         #Traverse the specified Match Results file and extract parts of each row into a list
         print("\n TOP OF FUNCTION split_result_file() -- file: %s" % (str(matchreview_file)) )
         count = blkpass_rowcount = meta_rowid = weight_pos = 0
-        maxlen = 20   #Start out assuming a very narrow set of matching fields -- then use the maximum width to set a "justify" line so that the results appear less ragged.
+        self.max_length_matching_text = 20   #Start out assuming a very narrow set of matching fields -- then use the maximum width to set a "justify" line so that the results appear less ragged.
         blkpass = holdpass = ""
-        sep = "?   ~"                    #In the BigMatch results files, this string separates the first column (weight and unique ID) from the blocking and matching field values.
+        #Run thru a small number of rows hjust to get an idea of how long the matching text is, so we space the columns correctly
         with open(matchreview_file, 'r') as matchfile:
             with open(self.exact_match_output_file, 'w') as exactfile:
                 for row in matchfile:
@@ -157,21 +165,25 @@ class MatchReview_Model():
                     matchvals = halves[1]                   #Second half of each row has the selected blocking/matching field values
                     matchlist = matchvals.split("~")        #Tilde separates Record File attributes from Memory File attributes, within the 2nd half of the row.
                     recmatches = self.reduce_blank_spaces(str(matchlist[0]).strip())  #Record File attributes
-                    if len(recmatches) > maxlen:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
-                        maxlen = len(recmatches)
+                    if len(recmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
+                        self.max_length_matching_text = len(recmatches)
                     memmatches = self.reduce_blank_spaces(str(matchlist[1]).strip())  #Memory File attributes
-                    if len(memmatches) > maxlen:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
-                        maxlen = len(memmatches)
+                    if len(memmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
+                        self.max_length_matching_text = len(memmatches)
                     if recmatches == memmatches:            #Exact matches are written to a separate file
                         print("Exact match: %s -|- %s" % (recmatches, memmatches) ) 
-                        exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(maxlen+10), " | ", id_mem, memmatches.ljust(maxlen+10)) )
+                        if self.no_delimiters_in_result_file:
+                            exactfile.write("%s %s %s %s %s %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.length_matching_text_column+10), id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
+                        else:
+                            exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(self.length_matching_text_column+10), " | ", id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
                     else:                 #NOT exact matches - store these in the meta_values array
                         accept_wgt = accept_usr = 0                                   #accept_wgt and accept_usr flags will track rows which the user has ACCEPTED via a weight cutoff threshold (above which rows are "accepted" or an explicit selection by user click of a checkbox)
                         if self.debug: print("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches) )
                         #**************************************************************************************************************
                         #Populate the meta_values array (list of lists) that will be used to populate the Entry Grid
-                        meta_temp = [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr]     #meta_temp is a LIST consisting of one row from the Review File
-                        self.meta_values.append(meta_temp)		          #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.\
+                        self.read_result_line_into_meta_values(blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr)
+                        #meta_temp = [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr]     #meta_temp is a LIST consisting of one row from the Review File
+                        #self.meta_values.append(meta_temp)		          #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.\
                         #**************************************************************************************************************
                         #print("\n -- ROW %s" % (count) )
                         #print("rec: %s" % (recmatches) )
@@ -184,6 +196,26 @@ class MatchReview_Model():
         self.matchfile_rows = count
         self.logobject.logit("\n At end of split_result_file(), meta_values has %s rows, and the matchfile has %s rows." % (len(self.meta_values) , self.matchfile_rows), True, True, True )  
         self.sort_list()
+
+    def est_length_of_matchfile_text(self, matchreview_file, sep):
+        with open(matchreview_file, 'r') as matchfile:
+            i = 0
+            for row in matchfile:
+                if i > 50:
+                    break
+                halves = str(row).split(sep, 1)
+                matchvals = halves[1]                   #Second half of each row has the selected blocking/matching field values
+                matchlist = matchvals.split("~")        #Tilde separates Record File attributes from Memory File attributes, within the 2nd half of the row.
+                recmatches = self.reduce_blank_spaces(str(matchlist[0]).strip())  #Record File attributes
+                if len(recmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
+                    self.max_length_matching_text = len(recmatches)
+                memmatches = self.reduce_blank_spaces(str(matchlist[1]).strip())  #Memory File attributes
+                if len(memmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
+                    self.max_length_matching_text = len(memmatches)
+                i += 1
+            matchfile.close()
+        self.length_matching_text_column = self.max_length_matching_text +10                            #Account for the fact that some rows might be wider than any of the first few rows
+        return self.length_matching_text_column
 
     '''def init_grid_arrays(self):
         i = 0
@@ -333,24 +365,28 @@ class MatchReview_Model():
         self.advanced_frame.grid(row=stackslot, column=0, sticky=EW)
         self.advanced_frame.configure(background=self.bgcolor, padx=4, pady=1)
 		
-        self.btnDisplayOneFile = Button(self.advanced_frame, text="View the selected file", width=24, command=self.load_single_file)
-        self.btnDisplayOneFile.grid(row=0, column=0, sticky=W)
-        self.btnDisplayOneFile.configure(state=DISABLED, padx=4, pady=1)        #Do not enable this button unless the user has selected MatchReview files
+        #self.btnDisplayOneFile = Button(self.advanced_frame, text="View the selected file", width=24, command=self.load_single_file)
+        #self.btnDisplayOneFile.grid(row=0, column=0, sticky=W)
+        #self.btnDisplayOneFile.configure(state=DISABLED, padx=4, pady=1)        #Do not enable this button unless the user has selected MatchReview files
 		
-        self.btnDisplayAllFiles = Button(self.advanced_frame, text="View all files from this batch", width=24, command=self.load_combined_files)
-        self.btnDisplayAllFiles.grid(row=0, column=1, sticky=W)
-        self.btnDisplayAllFiles.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected MatchReview files
+        #self.btnDisplayAllFiles = Button(self.advanced_frame, text="View all files from this batch", width=24, command=self.load_combined_files)
+        #self.btnDisplayAllFiles.grid(row=0, column=1, sticky=W)
+        #self.btnDisplayAllFiles.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected MatchReview files
+		if self.allow_view_combined_files:
+            self.btnWriteGoodPairs = Button(self.advanced_frame, text="Combine exact and accepted pairs for this batch", width=36, command=self.combine_good_pairs_all_passes)
+            self.btnWriteGoodPairs.grid(row=0, column=0, sticky=W)
+            self.btnWriteGoodPairs.configure(state=NORMAL, padx=4, pady=1)       #Do not enable this button unless the user has selected MatchReview files
 		
-        self.lblSortBy = Label(self.advanced_frame, text="Sort on: ")
-        self.lblSortBy.grid(row=0, column=2, sticky=W) 
-        self.lblSortBy.configure(background=self.bgcolor, font=("Arial", 9, "normal"), borderwidth=0, width=7, anchor=E, padx=4, pady=1)
-        var = StringVar(self.advanced_frame)
-        var.set("Blocking Pass+Weight")
-        value_list = ["Blocking Pass+Weight", "Weight"]
-        self.optSortBy = OptionMenu(self.advanced_frame, var, *value_list, command=lambda x:self.change_sort_column(var) )
-        self.optSortBy.grid(row=0, column=3, sticky=W)
-        self.optSortBy.config(font=('calibri',(9)), bg='light grey', width=18, padx=4, pady=1)
-        self.optSortBy['menu'].config(background=self.bgcolor, font=("calibri",(11))) 
+        #self.lblSortBy = Label(self.advanced_frame, text="Sort on: ")
+        #self.lblSortBy.grid(row=0, column=2, sticky=W) 
+        #self.lblSortBy.configure(background=self.bgcolor, font=("Arial", 9, "normal"), borderwidth=0, width=7, anchor=E, padx=4, pady=1)
+        #var = StringVar(self.advanced_frame)
+        #var.set("Blocking Pass+Weight")
+        #value_list = ["Blocking Pass+Weight", "Weight"]
+        #self.optSortBy = OptionMenu(self.advanced_frame, var, *value_list, command=lambda x:self.change_sort_column(var) )
+        #self.optSortBy.grid(row=0, column=3, sticky=W)
+        #self.optSortBy.config(font=('calibri',(9)), bg='light grey', width=18, padx=4, pady=1)
+        #self.optSortBy['menu'].config(background=self.bgcolor, font=("calibri",(11))) 
 
     def handle_jump_to_weight(self, parm=None):
         if not self.meta_values or not self.view_object:
@@ -400,7 +436,7 @@ class MatchReview_Model():
         PARM is a multi-valued parameter submitted by the TKINTER spinner object thru its BIND event handlers. 
         But we're more interested in the value of the STRINGVAR that was designated to hold the value of the Spinner widget. That Stringvar's value is retrieved via self.accept_threshold.get()'''
         #self.logobject.logit("\n Spinner stringvar: %s, stringvar value: %s, parm: %s, widget: %s" % (self.accept_threshold, self.accept_threshold.get(), parm, parm.widget), True, True, True )
-        self.logobject.logit("\n Spinner stringvar: %s, stringvar value: %s" % (self.accept_threshold, self.accept_threshold.get()), True, True, True )
+        if self.debug: self.logobject.logit("\n Spinner stringvar: %s, stringvar value: %s" % (self.accept_threshold, self.accept_threshold.get()), True, True, True )
         if not self.controls or not self.meta_values:
             return
         spinnerval = 0
@@ -439,9 +475,11 @@ class MatchReview_Model():
             with open(self.matchreview_file_to_save_to, "w") as f: 
                 i = 0
                 chkvalue = control_found = ""
+                if self.write_descrips_in_result_file:
+                    f.write("blk.pass    weight    record file id    record file match values     memory file id     memory file match values")
                 for item in self.meta_values:                       #meta_values is a list of dicts storing the content from the two files that were matched (components: blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid)
                     control_found = ""
-                    self.logobject.logit("meta_rowid %s has weight %s. Include? %s" % (item[6], item[1], float(str(item[1])) >= float(self.accept_threshold.get()) ), True, True, True )
+                    if self.debug: self.logobject.logit("meta_rowid %s has weight %s. Include? %s" % (item[6], item[1], float(str(item[1])) >= float(self.accept_threshold.get()) ), True, True, True )
                     if float(str(item[1])) >= float(self.accept_threshold.get()):       #item[1] is the match weight for this row
                         chkvalue = "1"                              #By default, this row should be written to the results, by virtue of its high match weight (above the user-designated threshold)
                     #Now check the currently-displayed rows to make sure this row is still "checked" - the user might have unchecked it.
@@ -457,12 +495,24 @@ class MatchReview_Model():
                     if self.debug and not control_found: self.logobject.logit("(control was not found for this item -- only 30 rows are displayed in screen controls at a time)", True, True, True)
                     #Write this row to the ACCEPTED results file
                     if str(chkvalue) == "1": 
-                        f.write("%s %s %s %s \n" % (item[0], item[1], item[2], item[3] ) )
+                        #if self.write_descrips_in_result_file:
+                        #    f.write("bp:%s wt:%s rcfid:%s rcmtch:%s mmfid:%s mmtch:%s \n" % (item[0], item[1], item[4], item[2], item[5], item[3] ) )         #[blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr]
+                        #else:
+                        #meta_temp is a LIST consisting of one row from the Review File  [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr]						
+                        ##exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.length_matching_text_column+10), id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
+                        if self.no_delimiters_in_result_file:
+                            #exactfile.write("%s %s %s %s %s %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.length_matching_text_column+10), id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
+                            f.write("%s %s %s %s %s %s \n" % (item[0], item[1].rjust(9), item[4], item[2].ljust(self.length_matching_text_column+10), item[5], item[3].ljust(self.length_matching_text_column+10) ) )
+                        else:
+                            #exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(self.length_matching_text_column+10), " | ", id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
+                            f.write("%s %s %s %s %s: %s %s %s: %s \n" % (item[0], " | ", item[1].rjust(9), " | ", item[4], item[2].ljust(self.length_matching_text_column+10), " | ", item[5], item[3].ljust(self.length_matching_text_column+10) ) )
                     i += 1
                 f.close()
         except:
             if self.debug: 
                 raise
+        #Display a temporary message notifying the user that their file was created.
+        self.update_message_region("File has been saved")
 
     def change_sort_column(self, var):
         print("\n in change_sort_column(), var='%s'" % (str(var.get()) ) )
@@ -551,6 +601,50 @@ class MatchReview_Model():
         #Load (or re-load) the grid so that the user can review this file row by row
         self.display_views()
 
+    def combine_good_pairs_all_passes(self):
+        '''Bigmatch result files are created for each blocking pass, and each must be evaluated separately because the logic of weight cutoffs differs significantly across passes.
+        However, after the user has accepted matches by a pass-by-pass review process, the results can be combined for post-processing. 
+        So if we find all files with the _EXACT.dat and _ACCEPTED.dat suffixes, we can combine them and write a new file with just unique IDs of the matching records.'''
+        print("\n FILE SELECTED: %s aka %s" % (self.matchreview_file_selected_by_user, str(self.matchreview_file_selected_by_user)[-12:][:6].lower().strip() ) )
+        head, tail = os.path.split(self.matchreview_file_selected_by_user)
+        match_result_filename_trunc = self.get_result_filename_trunc(self.matchreview_file_selected_by_user)
+        self.combined_exact_accepted_file = os.path.join(head, match_result_filename_trunc + "pairs_exact_accpt.dat").lower().strip()
+        if str(self.matchreview_file_selected_by_user)[-12:][:6].lower().strip() == "_pairs":
+            #Find all files in the same folder as that selected by the user, that also have the same filename (except for final suffix) as the user-selected file.  (Example: Myfile_Pairs_00.bat, Myfile_Pairs_01.bat, etc.)
+            self.build_list_of_all_pairs_files_for_batch("good")
+            if len(self.match_files_for_batch) == 0:
+                self.error_message = "Combining BigMatch result files failed."
+            else:
+                try:
+                    with open(self.combined_exact_accepted_file, 'w') as outfile:
+                        for filenm in self.match_files_for_batch:
+                            if self.debug: self.logobject.logit("Next file in batch of good pairs: %s" % (filenm), True, True, True)
+                            suffix_exact = filenm[-12:-11]
+                            suffix_accpt = filenm[-15:-14]
+                            try:
+                                if "012345678".find(suffix_exact[:1]) != -1:
+                                    suffix = str(int(suffix_exact))
+                                elif "012345678".find(suffix_accpt[:1]) != -1:
+                                    suffix = str(int(suffix_accpt))
+                            except ValueError:
+                                pass
+                            nextfile = os.path.join(head, filenm)
+                            if nextfile.lower().strip() != self.combined_exact_accepted_file:      #DO NOT allow the newly created file to be included in this loop, or it will set up an endless loop!
+                                key_text = None
+                                weight_pos = 1
+                                delimiter = "|"
+                                with open(nextfile) as infile:
+                                    for row in infile:                                      #blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr
+                                        segments = str(row).split(delimiter)
+                                        
+                                outfile.write("%s %s %s %s \n" % (segments[0], segments[1].rjust(9), segments[4].ljust(22), segments[5].ljust(22) ) )
+                except IOError as e:
+                    print("I/O error({0}): {1}".format(e.errno, e.strerror))
+                    self.error_message = str(e.strerror)
+        if self.error_message is not None:
+            self.handle_error()
+            return
+
     def combine_result_files(self):
         '''Not currently active.  This function combines BigMatch result files so that the user can review all at once. It was deactivated at least temporarily due to concern that ideal cutoff thresholds differ from pass to pass, so no general rule about the cutoff can be arrived at.'''
         print("\n FILE SELECTED: %s aka %s" % (self.matchreview_file_selected_by_user, str(self.matchreview_file_selected_by_user)[-12:][:6].lower().strip() ) )
@@ -585,20 +679,28 @@ class MatchReview_Model():
             self.handle_error()
             return
 
-    def build_list_of_all_pairs_files_for_batch(self):
+    def build_list_of_all_pairs_files_for_batch(self, rawpairs_or_goodpairs="good"):
         '''See note at combine_result_files() '''
+        rawpairs_or_goodpairs = str(rawpairs_or_goodpairs).lower().strip()
         self.match_files_for_batch = []
         head, tail = os.path.split(self.matchreview_file_selected_by_user)
         dirpath = head
         match_result_filename_trunc = self.get_result_filename_trunc(self.matchreview_file_selected_by_user)
-        print("In build_list_of_all_pairs_files_for_batch(), match_result_filename_trunc=%s" % (match_result_filename_trunc))
+        print("\nIn build_list_of_all_pairs_files_for_batch(), rawpairs_or_goodpairs: %s, match_result_filename_trunc=%s" % (rawpairs_or_goodpairs, match_result_filename_trunc))
         for (dirpath, dirnames, filenames) in walk(head):
             for filenm in filenames:
                 filenm = str(filenm).lower().strip()
-                print("Next file in dir: %s .... %s" % (filenm, filenm[:-12]) )
-                if filenm[:-12] == match_result_filename_trunc and filenm[-4:] == ".dat":    #This is a batch-mate of the selected file
-                    if filenm[-6:] != "99.dat":                       #Don't include this COMBINED file, as it will be overwritten anyway
-                        self.match_files_for_batch.append(filenm)
+                print("\nNext file in dir: %s .... %s" % (filenm, filenm[:-12]) )
+                #if rawpairs_or_goodpairs=="raw":
+                #    if filenm[:-12] == match_result_filename_trunc and filenm[-4:] == ".dat":    #This is a batch-mate of the selected file
+                #        if filenm[-6:] != "99.dat":                       #Don't include this COMBINED file, as it will be overwritten anyway
+                #            self.match_files_for_batch.append(filenm)
+                #elif rawpairs_or_goodpairs=="good":
+                self.logobject.logit("\nFilename trunk: %s, trunk(14): %s, suffix(13): %s, suffix(10): %s" % (match_result_filename_trunc, filenm[:-14], filenm[-13:], filenm[-10:]), True, True, True)
+                if filenm[:-21] == match_result_filename_trunc and filenm[-13:] == "_accepted.dat": 
+                    self.match_files_for_batch.append(filenm)
+                elif filenm[:-18] == match_result_filename_trunc and filenm[-10:] == "_exact.dat":
+                    self.match_files_for_batch.append(filenm)
             break
         print("\n In build_list_of_all_pairs_files_for_batch(), Batch Files Found:")
         for f in self.match_files_for_batch:
@@ -635,17 +737,21 @@ class MatchReview_Model():
         
     def enable_display(self):
         if str(self.viewing_one_or_all_files).lower() == "one": 
-            if self.allow_view_combined_files:
-                self.btnDisplayOneFile.configure(state=DISABLED)       #Disable this button if the list is already populated with the user-selected file only
-                self.btnDisplayAllFiles.configure(state=NORMAL)        #Enable this button if the list is currently showing the user-selected file only.
+            #if self.allow_view_combined_files:
+            #    self.btnDisplayOneFile.configure(state=DISABLED)       #Disable this button if the list is already populated with the user-selected file only
+            #    self.btnDisplayAllFiles.configure(state=NORMAL)        #Enable this button if the list is currently showing the user-selected file only.
+            pass
+				
         elif str(self.viewing_one_or_all_files).lower() == "all":
-            if self.allow_view_combined_files:
-                self.btnDisplayOneFile.configure(state=NORMAL)         #Enable this button if the list is currently showing the user-selected file only
-                self.btnDisplayAllFiles.configure(state=DISABLED)	   #Disable this button if the list is already populated with the COMBINED files
+            #if self.allow_view_combined_files:
+            #    self.btnDisplayOneFile.configure(state=NORMAL)         #Enable this button if the list is currently showing the user-selected file only
+            #    self.btnDisplayAllFiles.configure(state=DISABLED)	   #Disable this button if the list is already populated with the COMBINED files
+            pass
         else:
             if self.allow_view_combined_files:
-                self.btnDisplayOneFile.configure(state=NORMAL)         #Allow the user to choose either single or combined
-                self.btnDisplayAllFiles.configure(state=NORMAL)        #Allow the user to choose either single or combined
+                #self.btnDisplayOneFile.configure(state=NORMAL)         #Allow the user to choose either single or combined
+                #self.btnDisplayAllFiles.configure(state=NORMAL)        #Allow the user to choose either single or combined
+                pass
 
         if self.viewing_one_or_all_files is not None:                  #All of the following buttons require that the user has already loaded EITHER a single file or a combined file.
             if self.view_object is None:
@@ -797,6 +903,120 @@ class MatchReview_Model():
         #print("Checking for key '%s' in **Kwargs -- Found? %s" % (str(keyvalue), str(found) ) ) 
         return found
 
+		
+		
+		
+    #*********************************************************************************************
+    def read_write_bigmatch_result_file(self, infile=None, outfile=None, write_which=None, write_what=None, read_into_meta_values_list=None, file_format="bigmatch", delimiter="|", columns_to_write=None):
+        '''Parse the standard BigMatch result file, extracting key information such as the match weight, ID (sequence) fields, matched values, etc.
+        All of this information is stored in self.meta_values. But NOTE: the simple match values stored in self.meta_values proved to be insufficient for a robust user assessment.
+        So match values are stored separately in self.frame_and_its_labels, so that they can be displayed and re-displayed in color-coded segments. See below function populate_resultrow_frame()'''
+        if infile is None:
+            infile = self.matchreview_file_to_load_from
+        if not infile:
+            self.handle_error("No result file was specified")
+            return
+        if not outfile:
+            outfile = self.exact_match_output_file
+        if not outfile:
+            self.handle_error("No target file was specified")
+            return
+        write_which = str(write_which).lower().strip()
+        #Traverse the specified Match Results file, and optionally write parts to an outfile AND/OR extract parts of each row into a list.
+        print("\n TOP OF FUNCTION read_write_bigmatch_result_file() -- file: %s" % (str(infile)) )
+        count = blkpass_rowcount = meta_rowid = weight_pos = 0
+        self.max_length_matching_text = 20   #Start out assuming a very narrow set of matching fields -- then use the maximum width to set a "justify" line so that the results appear less ragged.
+        blkpass = holdpass = ""
+        sep = "?   ~"                    #In the BigMatch results files, this string separates the first column (weight and unique ID) from the blocking and matching field values.
+        with open(infile, 'r') as infl:
+            with open(outfile, 'w') as outf:
+                for row in infl:
+                    if len(row) == 0:
+                        continue                         #Empty row
+                    if str(row)[:4]=="****":             #Asterisk lines are placed in the file to denote the start of a new section of results (different blocking pass)
+                        continue
+                    halves = str(row).split(sep, 1)
+                    first_half_as_list = halves[0].strip().split(" ")
+                    chunk1 = first_half_as_list[0].lower().strip() #First chunk of text could be Weight (if the BigMatch result file is unaltered) -OR- it could be Blocking Pass number (if file was altered by this GUI or some other post-process)
+                    bp_pos = chunk1.find("bp:")            #If the file being reviewed has been post-processed by this GUI to combine results from multiple blocking passes, then it should have the string "bp:" in every row, specifying which blocking pass the row was generated by.
+                    if bp_pos == -1:
+                        blkpass = self.get_blocking_pass_num_from_results_filename()                   # "0"
+                        weight = chunk1
+                        weight_pos = 0
+                    else:
+                        blkpass = chunk1[bp_pos+3: bp_pos+5].lower().strip()
+                        weight = first_half_as_list[1]
+                        weight_pos = 1
+                    if blkpass != holdpass:                    #Reset this counter when we encounter a new Blocking Pass section
+                        blkpass_rowcount = 0
+                        holdpass = blkpass
+                    weight = weight.replace("+", "")
+                    try:
+                        weight = str(round(float(weight), 3))
+                    except ValueError:
+                        weight = str(weight)                #In case of unexpected non-numeric values
+                        #continue
+                    #Now grab the other values within the first section of this row (note that this code assumes NO BLANKS in unique ID fields!)
+                    id_rec = first_half_as_list[weight_pos +1]         #First part of each row has weight and ID numbers, and blocking field values
+                    id_mem = first_half_as_list[weight_pos +2]         #First part of each row has weight and ID numbers, and blocking field values
+                    blkfldvals = first_half_as_list[3:]                #Following the Weight and two Unique IDs, an indefinite number of Blocking Values appear.
+                    blkfldvals = ''.join(str(itm).strip().ljust(len(itm.strip())+1) for itm in blkfldvals).strip()     #Convert indefinite number of Blocking Field Values from a list to a string
+                    blkfldvals = blkfldvals.replace("       ", "")     #Remove long blank spaces
+                    accept_wgt = accept_usr = 0                   #accept_wgt and accept_usr flags will track rows which the user has ACCEPTED via a weight cutoff threshold (above which rows are "accepted" or an explicit selection by user click of a checkbox)
+                    #print("Next: weight: %s, %s blkpass: %s, id_rec:%s, id_mem: %s, blkvals: '%s'" % (weight, "||", blkpass, id_rec, id_mem, blkfldvals) )
+                    #Move on to the second half of the row:
+                    matchvals = halves[1]                   #Second half of each row has the selected blocking/matching field values
+                    matchlist = matchvals.split("~")        #Tilde separates Record File attributes from Memory File attributes, within the 2nd half of the row.
+                    recmatches = self.reduce_blank_spaces(str(matchlist[0]).strip())  #Record File attributes
+                    if len(recmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
+                        self.max_length_matching_text = len(recmatches)
+                    memmatches = self.reduce_blank_spaces(str(matchlist[1]).strip())  #Memory File attributes
+                    if len(memmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
+                        self.max_length_matching_text = len(memmatches)
+                    #********************************************************************************************
+                    #Processing depends on whether this row represents an EXACT MATCH or a probabilistic weight
+                    write_this_row = store_row_to_meta_values = False
+                    if recmatches == memmatches:       #EXACT matches (normally written to a separate file)
+                        if write_which == "exact" or write_which == "all":
+                            print("Exact match: %s -|- %s" % (recmatches, memmatches) ) 
+                            write_this_row = True
+                        #If specified, store this EXACT MATCH row into the META_VALUES list (not the default)
+                        if read_into_meta_values_list=="exact" or read_into_meta_values_list=="all":
+                            store_row_to_meta_values = True
+                    else:                              #NOT EXACT MATCH - a probabilistic weight has been assigned by BigMatch, so the user will review all rows and decide where the best weight threshold is for ACCEPTANCE
+                        if write_which == "non_exact":
+                            write_this_row = True
+                        if read_into_meta_values_list=="non_exact" or read_into_meta_values_list=="all":
+                            store_row_to_meta_values = True
+                    if write_this_row:
+                        if self.no_delimiters_in_result_file:
+                            outf.write("%s %s %s %s %s %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.max_length_matching_text+10), id_mem, memmatches.ljust(self.max_length_matching_text+10)) )
+                        else:
+                            outf.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(self.max_length_matching_text+10), " | ", id_mem, memmatches.ljust(self.max_length_matching_text+10)) )
+                    if read_into_meta_values_list:
+                        if self.debug: print("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches) )
+                        #**************************************************************************************************************
+                        #Populate the META_VALUES list (list of lists) that will be used to populate the Entry Grid
+                        self.read_result_line_into_meta_values(blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr)
+                        #**************************************************************************************************************
+                    #if self.debug:
+                        #print("\n -- ROW %s" % (count) )
+                        #print("rec: %s" % (recmatches) )
+                        #print("mem: %s" % (memmatches) )
+                    meta_rowid += 1                   #Count this as a row that will be added to self.meta_values
+                    count += 1
+                #Close files:
+                outf.close()
+            infl.close()
+        self.matchfile_rows = count
+        self.logobject.logit("\n At end of read_write_bigmatch_result_file(), meta_values has %s rows, and the matchfile has %s rows." % (len(self.meta_values) , self.matchfile_rows), True, True, True )  
+        self.sort_list()
+
+    def read_result_line_into_meta_values(self, blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr):
+        meta_temp = [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr]     #meta_temp is a LIST consisting of one row from the Review File
+        self.meta_values.append(meta_temp)		          #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.\
+        
+
 #******************************************************************************
 # NEW CLASS SECTION
 #******************************************************************************
@@ -906,7 +1126,7 @@ class MatchReview_View(Frame):
         for item in self.model.meta_values:  #The entire contents of the BigMatch result file is loaded into self.model.meta_values. Display only 30 at a time. 
             if ix >= self.start_row and countrow < self.rows_to_display:
                 self.meta_rowid = item[6]    #The Row index number of the current row in meta_values
-                self.model.logobject.logit("\nRow %s is between %s and %s so it will be displayed. Meta_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.meta_rowid ), True, True )
+                if self.debug: self.model.logobject.logit("Row %s is between %s and %s so it will be displayed. Meta_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.meta_rowid ), True, True )
                 vert_position = self.get_widgetstack_counter()
                 label_text = ""
                 #(1) Checkbox to indicate that this field should be accepted as a match:
@@ -1331,7 +1551,7 @@ class MatchReview_View(Frame):
                 if self.debug: self.logobject.logit("Calling populate_resultrow_frame with 'rec', %s" % (self.recfile_values_for_current_row), True, True, True)
                 self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_fresult)          #Display the comparison values
                 gridcolumn = 5
-                self.logobject.logit("Calling populate_resultrow_frame with 'mem', %s" % (self.recfile_values_for_current_row), True, True, True)
+                if self.debug: self.logobject.logit("Calling populate_resultrow_frame with 'mem', %s" % (self.recfile_values_for_current_row), True, True, True)
                 self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_fresult)          #Display the comparison values
                 #******************************************************************************************************************
                 countrow += 1

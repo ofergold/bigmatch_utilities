@@ -38,7 +38,7 @@ class EntryWidget(Entry):
 
 class EntryGrid(Frame):
     ''' Dialog box with Entry widgets arranged in columns and rows.'''
-    debug = True
+    debug = False
     error_message = ""
     initialized = False	
     parent = None

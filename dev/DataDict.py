@@ -20,7 +20,7 @@ gl_file_textbox_width = 80
 
 #******************************************************************************************
 class DataDict_Model():
-    debug = True
+    debug = False
     error_message = None
     controller = None                       #Controller is the BigMatchController class in main.py 
     logobject = None                        #Instantiation of CHLog class
@@ -247,7 +247,7 @@ class DataDict_Model():
 
 #******************************************************************************************
 class DataDict_View(Frame):
-    debug = True
+    debug = False
     container = None
     #controller = None
     model = None

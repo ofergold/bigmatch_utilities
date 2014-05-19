@@ -16,7 +16,7 @@ from CHLog import *
 current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
 up_one, tail = os.path.split(current)                             #bigmatch
 up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
-print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
+#print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
 python_common_found = None
 if os.path.isdir(os.path.join(up_two, "common_functions", "python_common")):
     python_common_found = True

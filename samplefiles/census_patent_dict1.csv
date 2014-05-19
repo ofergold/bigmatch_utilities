@@ -1,0 +1,1 @@
+column_name,start_pos,width,unique_id_yn,matchfield_yn,bigmatch_type,data_format,commentsid,1,10,y,,,int,last_name,11,40,,y,uo,char,first_name,51,40,,y,uo,char,middle_name,91,20,,y,uo,char,organization_name,111,250,,y,,char,city,361,40,,y,uo,char,state,401,20,,y,c,char,soundex_lastname,421,5,,y,c,char,soundex_firstname,426,5,,y,c,char,

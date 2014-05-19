@@ -24,7 +24,7 @@ from Error_UI import *
 current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
 up_one, tail = os.path.split(current)                             #bigmatch
 up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
-print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
+#print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
 python_common_found = None
 if os.path.isdir(os.path.join(up_two, "common_functions", "python_common")):
     python_common_found = True
@@ -50,7 +50,8 @@ except:
 #*****************************************************************************************************************************************************************
 class BigMatchController():
     '''BigMatchController class creates a menu and a canvas for displaying various widgets. It also calls all methods necessary for instantiating those various widgets.'''
-    debug = True
+    debug = False
+    debug_global = None             #Debug settings in all child modules canbe turned on or off with this one controller property
     error_message = None
     error_list = []                 #Collection of errors that have been logged
     parent_window = None	
@@ -494,7 +495,7 @@ class BigMatchController():
 
 #******************************************************************************
 class ScrollCanvas(Canvas):
-    debug = True                        #If debug=True, then output is sent to the Python command window for debugging.
+    debug = False                       #If debug=True, then output is sent to the Python command window for debugging.
     parent_window = None				#parent_window is the TK() root.
     framestack = None					#"framestack" refers to the stack of objects that are displayed on the big frame.  They arrange from top to bottom using .grid(row=x) positioning.
     framestack_counter = None           #See framestack description.  The Framestack_Counter is incremented once for each widget that is placed on the big frame, so it becomes that widget's index number and row number within the big frame.
@@ -532,7 +533,7 @@ class ScrollCanvas(Canvas):
 
 #**********************************************************************************************************************        
 class BigFrame(Frame):
-    debug = True
+    debug = False
     parent_window = None
     parent = None						#Parent is assumed to be the main canvas.
     widgetstack = None					#List object which holds references to the stack of objects that are displayed on the big frame.  They arrange from top to bottom using .grid(row=x) positioning.

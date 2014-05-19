@@ -17,7 +17,7 @@ gl_frame_height = 100
 
 #******************************************************************************
 class BlockingPass_Model():
-    debug = True
+    debug = False
     error_message = None
     parent_window = None                    #Parent_wiondow is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
@@ -918,7 +918,7 @@ class BlockingPass_Model():
 #******************************************************************************
 #******************************************************************************
 class BlockingPass_View(Frame):
-    debug = True
+    debug = False
     container = None
     model = None
     widgetstack_counter = None

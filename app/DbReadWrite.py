@@ -8,7 +8,7 @@ import datetime, time, sched
 
 #******************************************************************************
 class DbReadWrite():
-    debug = True
+    debug = False
     error_message = None               
 
 

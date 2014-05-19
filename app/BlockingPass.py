@@ -592,7 +592,7 @@ class BlockingPass_Model():
             #head, tail = os.path.split(self.bigmatch_parmf_file_to_save)
             #self.parmf_file = os.path.join(head, "parmf.txt")
             self.logobject.logit("\n ParmF file will be saved to: %s \n" % (self.bigmatch_parmf_file_to_save), True, True )
-            bigspace = "                    " 		
+            bigspace = "        " 
             #For line 2 in ParmF.txt we need total number of passes, with number of blocking and matching fields for each pass. Loop thru the ParmF_Rows to count the number of non-empty blocking passes and blocking/matching fields:
             self.blocking_passes = []
             hold_section = section = ""
@@ -650,7 +650,7 @@ class BlockingPass_Model():
                     #print(row)
                     if str(row["rowtype"]).lower() == "blocking_fields":
                         if self.debug: self.logobject.logit(row, True, True, True)
-                        blocking_row_string = str(row["recfile_column"]).lower().ljust(10) + bigspace + str(row["recfile_startpos"]).ljust(4) + " " + str(row["recfile_width"]).ljust(5) + " " + str(row["memfile_startpos"]).ljust(4) + " " + str(row["memfile_width"]).ljust(5) + " " + str(row["blank_flag"]).ljust(4)
+                        blocking_row_string = str(row["recfile_column"]).lower().ljust(24) + bigspace + str(row["recfile_startpos"]).ljust(4) + " " + str(row["recfile_width"]).ljust(5) + " " + str(row["memfile_startpos"]).ljust(4) + " " + str(row["memfile_width"]).ljust(5) + " " + str(row["blank_flag"]).ljust(4)
                         f.write(blocking_row_string + "\n" )
                     elif str(row["rowtype"]).lower() == "matching_fields":
                         #M-Value (matched):
@@ -677,7 +677,7 @@ class BlockingPass_Model():
                             uvalue = "0.0" + str(round(float(uvalue),0)).replace(".0", "")
                         elif float(uvalue) < 100:
                             uvalue = "0." + str(round(float(uvalue),0)).replace(".0", "")
-                        blocking_row_string = str(row["recfile_column"]).lower().ljust(10) + bigspace + str(row["recfile_startpos"]).ljust(4) + " " + str(row["recfile_width"]).ljust(5) + " " + str(row["memfile_startpos"]).ljust(4) + " " + str(row["memfile_width"]).ljust(5) + " 0 " + str(row["comparison_method"]).ljust(5) + " " + mvalue.ljust(7) + " " + uvalue.ljust(7)
+                        blocking_row_string = str(row["recfile_column"]).lower().ljust(24) + bigspace + str(row["recfile_startpos"]).ljust(4) + " " + str(row["recfile_width"]).ljust(5) + " " + str(row["memfile_startpos"]).ljust(4) + " " + str(row["memfile_width"]).ljust(5) + " 0 " + str(row["comparison_method"]).ljust(5) + " " + mvalue.ljust(7) + " " + uvalue.ljust(7)
                         #Write the row to the ParmF.txt parameters file
                         f.write(blocking_row_string + "\n" )
                     elif str(row["rowtype"]).lower() == "cutoff_fields":
@@ -689,7 +689,7 @@ class BlockingPass_Model():
                 #Final Line of the ParmF.txt parameter file indicates column name, width and starting position for the Sequence Column in Record file and Memory file.
                 col_attribs = self.locate_sequence_column("rec")
                 if col_attribs is not None:
-                    f.write(str(col_attribs["sequence_column_name"]).ljust(10) + bigspace + str(col_attribs["startpos"]) + " " + str(col_attribs["width"]) + " ")
+                    f.write(str(col_attribs["sequence_column_name"]).ljust(16) + bigspace + str(col_attribs["startpos"]) + " " + str(col_attribs["width"]) + " ")
                 col_attribs = self.locate_sequence_column("mem")
                 if col_attribs is not None:
                     f.write(col_attribs["startpos"] + " " +col_attribs["width"] + "\n")
@@ -1194,7 +1194,7 @@ class BlockingPass_View(Frame):
                 #if self.debug: self.model.logobject.logit(parmdict) 
                 #if self.debug: self.model.logobject.logit(parmdict, True, True, True) 
             control_name = self.model.get_control_name("opt", self.rowtype, data_column_name, "memfld", str(self.pass_index) )    #get_control_name_prefix(widget_type, row_type, data_column_name, parm_type, blocking_pass_index)
-            opt = self.create_optmenu(fieldnames, curvalue, control_name, vert_position, gridcolumn=1, width=12, rowindex=self.row_index, rowtype=self.rowtype, data_column_name=data_column_name, text=data_column_name)
+            opt = self.create_optmenu(fieldnames, curvalue, control_name, vert_position, gridcolumn=1, width=14, rowindex=self.row_index, rowtype=self.rowtype, data_column_name=data_column_name, text=data_column_name)
             #************************************************
             ##Spinner for 0/1 value of Blank Flag.  Normally set to 1.			
             curvalue = '1'
@@ -1249,7 +1249,7 @@ class BlockingPass_View(Frame):
                 #if self.debug: self.model.logobject.logit("--After Get_cur_var...val() for MemFile fld, row %s (MatchFld sect), parmdict:" % (self.row_index) ) 
                 #if self.debug: self.model.logobject.logit(parmdict)
             control_name = self.model.get_control_name("opt", self.rowtype, data_column_name, "memfld", str(self.pass_index) )    #get_control_name_prefix(widget_type, row_type, data_column_name, parm_type, blocking_pass_index)
-            opt = self.create_optmenu(fieldnames, curvalue, control_name, vert_position, gridcolumn=1, width=12, rowindex=self.row_index, rowtype=self.rowtype, data_column_name=data_column_name, text=data_column_name)
+            opt = self.create_optmenu(fieldnames, curvalue, control_name, vert_position, gridcolumn=1, width=14, rowindex=self.row_index, rowtype=self.rowtype, data_column_name=data_column_name, text=data_column_name)
             #Hidden control - not displayed and always set to "0", but needs to be in the self.controls list because that's how values get written to the ParmF.txt parameter file.
             #curvalue = 0
             #control_name = "null_flag_" + str(self.row_index)

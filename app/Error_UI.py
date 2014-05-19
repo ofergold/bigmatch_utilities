@@ -19,7 +19,7 @@ gl_frame_height = 100
 
 #******************************************************************************
 class Error_UI_Model():
-    debug = True
+    debug = False
     error_message = None                    #Plain text error message
     error_list = []                         #List of errors that have been logged by the controller (LIST OF DICTS - EACH DICT CONTAINS AN ERROR MESSAGE AND EXCEPTION OBJECTS)
     error_dict = None                       #The ERROR DICT currently being processed
@@ -126,7 +126,7 @@ class Error_UI_Model():
 #******************************************************************************
 #******************************************************************************
 class Error_UI_View(Frame):
-    debug = True
+    debug = False
     container = None
     model = None
     widgetstack_counter = None

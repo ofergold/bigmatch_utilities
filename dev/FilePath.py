@@ -17,7 +17,7 @@ gl_file_textbox_width = 100
 
 #*****************************************************************************************		
 class FilePath_Model():
-    debug = True
+    debug = False
     error_message = None
     parent_window = None	
     controller = None          #Controller is the BigMatch MAIN class file
@@ -159,7 +159,7 @@ class FilePath_Model():
 	
 #*****************************************************************************************	
 class FilePath_View(Frame):
-    debug = True
+    debug = False
     container = None
     model = None
     label_object = None

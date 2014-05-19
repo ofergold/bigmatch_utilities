@@ -17,7 +17,7 @@ from CHUser import *
 #*****************************************************************************************************************************************************************
 class BigMatchController():
     '''BigMatchController class creates a menu and a canvas for displaying various widgets. It also calls all methods necessary for instantiating those various widgets.'''
-    debug = True
+    debug = False
     error_message = None
     parent_window = None	
     bigcanvas = None				#Main scrolling canvas on which the main frame object sits.  The canvas serves mainly to host the scrollbars.
@@ -278,7 +278,7 @@ class BigMatchController():
         process.wait()
 #******************************************************************************
 class ScrollCanvas(Canvas):
-    debug = True                        #If debug=True, then output is sent to the Python command window for debugging.
+    debug = False                        #If debug=True, then output is sent to the Python command window for debugging.
     parent_window = None				#parent_window is the TK() root.
     framestack = None					#"framestack" refers to the stack of objects that are displayed on the big frame.  They arrange from top to bottom using .grid(row=x) positioning.
     framestack_counter = None           #See framestack description.  The Framestack_Counter is incremented once for each widget that is placed on the big frame, so it becomes that widget's index number and row number within the big frame.

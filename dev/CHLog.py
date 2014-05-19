@@ -13,7 +13,7 @@ gl_font_style = "Arial"
 class CHLog():
     '''Log class handles displaying and/or recording information that is generally not intended for the user.  
 	This class posts the information to the Python command window (default), a log file or database. '''
-    debug = True
+    debug = False
     testmode = True
     error_message = None
     logfile = None
