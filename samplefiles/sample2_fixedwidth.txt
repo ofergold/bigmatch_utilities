@@ -1,0 +1,37 @@
+TOM           EDISON        W M            1
+HENRY         FORD            M            2
+MOLLY         PITCHER         F 17541013   3
+CESAR         CHAVEZ          M            4
+ROBERTO       CLEMENTE      H M            5
+RALPH         ELLISON         M            6
+ELLA          FITZGERALD    B F            7
+LOUIS         ARMSTRONG     B M            8
+BARRY         OBAMA           M            9
+MICHELLE      OBAMA           F           10
+JACK          ROBINSON        M           11
+TODD          PARK          A M 19730101  12
+CARLOS        SANTANA       H   19470720  13
+CHRISTINA     AGUILERA        F           14
+SONIA         SOTOMAYOR       F 19540625  15
+HAROLD        WASHINGTON      M 19220415  16
+THURGOOD      MARSHALL        M           17
+TEDDY         ROOSEVELT     W M           18
+GEORGE        WASHINGTON    W M 17320222  19
+NEIL          ARMSTRONG     W M 19300806  20
+MARTIN        KING            M           21
+JESSE         JACKSON       B M           22
+BRUCE         LEE           A M           23
+COLIN         POWELL        B M           24
+CONDOLEEZZA   RICE          B F           25
+NATHANIEL     COLE                        26
+DESI          ARNAZ           M           27
+LUCILLE       BALL          W F           28
+JONATHAN      WINTERS                     29
+JOAN          BAEZ              19410109  30
+CHARLES       BARKLEY         M           31
+RICHARD       WRIGHT        B M           32
+RICHARD       PRYOR           M           33
+HARRY         BELAFONTE                   34
+FREDERICK     DOUGLAS         M           35
+GEORGE        BURNS           M           36
+CURTIS        MAYFIELD      B             37

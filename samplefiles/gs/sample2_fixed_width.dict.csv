@@ -1,0 +1,7 @@
+column_name,start_pos,width,unique_id_yn,bigmatch_type,matchfield_yn,in_match_result,data_format,comments
+fname,1,14,,,,,,
+lname,15,14,,,,,,
+race,29,2,,,,,,
+gender,31,2,,,,,,
+dob,33,8,,,,,,
+id,41,4,y,,,,,

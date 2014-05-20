@@ -274,7 +274,6 @@ class MatchReview_Model():
     def display_user_buttons(self, container):
         '''Function display_user_buttons shows one or more buttons near top of page for common user functions, so the user doesn't need to constantly hit the system menus. '''
         self.button_frame = Frame(container)
-        self.button_frame2 = Frame(container)
         if str(type(container)).lower().find(".tk") == -1:							#For testing, we might display this object directly in the Tkinter main window.  If this is the case, then don't call get_widget_position().
             stackslot = container.get_widget_position(self.button_frame, "MatchReview_Model.display_user_buttons()")
         else:
@@ -282,7 +281,8 @@ class MatchReview_Model():
         self.button_frame.grid(row=stackslot, column=0, sticky=EW)
         self.button_frame.configure(background=self.bgcolor, padx=4, pady=1)
         #We need a second button frame for this module
-        stackslot = container.get_widget_position(self.button_frame, "MatchReview_Model.display_user_buttons_2()")
+        self.button_frame2 = Frame(container)
+        stackslot = container.get_widget_position(self.button_frame2, "MatchReview_Model.display_user_buttons_2()")
         self.button_frame2.grid(row=stackslot, column=0, sticky=EW)
         self.button_frame2.configure(background=self.bgcolor, padx=4, pady=1)
         #self.btnDisplayAllFiles = Button(self.button_frame, text="View all files from this batch", width=24, command=self.load_combined_files)
@@ -307,7 +307,7 @@ class MatchReview_Model():
         
         #Second user_buttons frame to hold weight-based manipulations
         #User can jump to rows with a specific weight here.
-        self.lblJumpToWeight = Label(self.button_frame2, text="Jump to weight: ")
+        '''GMS self.lblJumpToWeight = Label(self.button_frame2, text="Jump to weight: ")
         self.lblJumpToWeight.grid(row=0, column=0, sticky=W) 
         self.lblJumpToWeight.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
 
@@ -326,7 +326,7 @@ class MatchReview_Model():
         self.lblAcceptAbove.grid(row=0, column=2, sticky=W) 
         self.lblAcceptAbove.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
 		
-        '''self.accept_threshold = StringVar(self.button_frame2)
+        self.accept_threshold = StringVar(self.button_frame2)
         self.accept_threshold.set(10)
         spn = Spinbox(self.button_frame2, from_=0, to=30)
         spn.grid(row=0, column=5, sticky=W)
@@ -335,7 +335,8 @@ class MatchReview_Model():
         spn.bind(sequence="<Return>", func=self.spinhandler)
         spn.bind(sequence="<ButtonRelease-1>", func=self.spinhandler)
         '''
-        self.accept_threshold = StringVar(self.button_frame2)
+	    
+        '''GMS self.accept_threshold = StringVar(self.button_frame2)
         self.accept_threshold.set(10)
         self.accept_threshold.trace("w", self.catch_threshold_change)
         spn = Entry(self.button_frame2)
@@ -348,6 +349,7 @@ class MatchReview_Model():
         self.btnSaveToDictFile = Button(self.button_frame2, text="Write accepted pairs to file", width=20, command=self.write_accepted_pairs)
         self.btnSaveToDictFile.grid(row=0, column=4, sticky=W)
         self.btnSaveToDictFile.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected a MatchResults file to save as
+	    '''
 
         #Create a message region to display notifications to the user
         self.message_region = Message(self.button_frame2, text="")              
