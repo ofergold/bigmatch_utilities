@@ -1,2 +1,2 @@
-C:\Greg\GitRepos\bigmatch\samplefiles\gs\sample2_fixed_width.dict.csv
-C:\Greg\GitRepos\bigmatch\samplefiles\gs\sample_fixed_width.dict.csv
+C:\Greg\GitRepos\bigmatch\samplefiles\gs\sample2_fixedwidth.txt
+C:\Greg\GitRepos\bigmatch\samplefiles\gs\sample_fixedwidth.txt

@@ -6,6 +6,7 @@ from tkinter import *
 import tkinter.filedialog 
 from tkinter.filedialog import askopenfilename
 from tkinter.messagebox import *     #showerror
+import traceback
 import os
 import csv
 import datetime, time, sched

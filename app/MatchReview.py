@@ -5,6 +5,7 @@ import tkinter.filedialog
 from tkinter.filedialog import askopenfilename
 from tkinter.messagebox import showerror
 from TkEntry import EntryGrid
+import traceback
 import csv
 import os 
 from os import walk
@@ -43,7 +44,7 @@ class MatchReview_Model():
     exact_match_output_file = None           #Automatically create a file of exact matches for every blocking pass, so that we can generate statistics and so the user can view matches if desired.
     combined_matchreview_file = None	     #The user navigates to a .dat file, but can choose to combine it with ALL files in the same folder with the same name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     combined_exact_accepted_file = None      #Combined matched pairs (exact and accepted) for all passes in a batch
-    allow_view_combined_files = True        #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
+    allow_view_combined_files = False        #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
     viewing_one_or_all_files = None          #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix, this flag switches from "ONE" to "ALL"
     result_filename_trunc = None             #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     match_files_for_batch = None             #Files that will be combined into self.combined_matchreview_file or combined_exact_accepted_file
@@ -307,7 +308,7 @@ class MatchReview_Model():
         
         #Second user_buttons frame to hold weight-based manipulations
         #User can jump to rows with a specific weight here.
-        '''GMS self.lblJumpToWeight = Label(self.button_frame2, text="Jump to weight: ")
+        self.lblJumpToWeight = Label(self.button_frame2, text="Jump to weight: ")
         self.lblJumpToWeight.grid(row=0, column=0, sticky=W) 
         self.lblJumpToWeight.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
 
@@ -325,18 +326,18 @@ class MatchReview_Model():
         self.lblAcceptAbove = Label(self.button_frame2, text="Accept above: ")
         self.lblAcceptAbove.grid(row=0, column=2, sticky=W) 
         self.lblAcceptAbove.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
-		
-        self.accept_threshold = StringVar(self.button_frame2)
-        self.accept_threshold.set(10)
-        spn = Spinbox(self.button_frame2, from_=0, to=30)
-        spn.grid(row=0, column=5, sticky=W)
-        spn.config(textvariable=self.accept_threshold, background=self.bgcolor, width=5)
-        spn.bind(sequence="<FocusOut>", func=self.spinhandler)
-        spn.bind(sequence="<Return>", func=self.spinhandler)
-        spn.bind(sequence="<ButtonRelease-1>", func=self.spinhandler)
-        '''
+
+        ''' GMS spinner is not ideal, change to Entry		
+        #self.accept_threshold = StringVar(self.button_frame2)
+        #self.accept_threshold.set(10)
+        #spn = Spinbox(self.button_frame2, from_=0, to=30)
+        #spn.grid(row=0, column=3, sticky=W)
+        #spn.config(textvariable=self.accept_threshold, background=self.bgcolor, width=5)
+        #spn.bind(sequence="<FocusOut>", func=self.spinhandler)
+        #spn.bind(sequence="<Return>", func=self.spinhandler)
+        #spn.bind(sequence="<ButtonRelease-1>", func=self.spinhandler)  '''
 	    
-        '''GMS self.accept_threshold = StringVar(self.button_frame2)
+        self.accept_threshold = StringVar(self.button_frame2)
         self.accept_threshold.set(10)
         self.accept_threshold.trace("w", self.catch_threshold_change)
         spn = Entry(self.button_frame2)
@@ -349,7 +350,7 @@ class MatchReview_Model():
         self.btnSaveToDictFile = Button(self.button_frame2, text="Write accepted pairs to file", width=20, command=self.write_accepted_pairs)
         self.btnSaveToDictFile.grid(row=0, column=4, sticky=W)
         self.btnSaveToDictFile.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected a MatchResults file to save as
-	    '''
+
 
         #Create a message region to display notifications to the user
         self.message_region = Message(self.button_frame2, text="")              
