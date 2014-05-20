@@ -24,7 +24,7 @@ class MatchReview_Model():
     first, all values form the BigMatch result file (which can have 100,000+ rows in some cases) are loaded into self.meta_values.
     But we display only 30 rows at a time on screen. The user can scroll from page to page, looking for the cutoff between acceptable and non-acceptable matches.
     '''
-    debug = True
+    debug = False
     error_message = None
     parent_window = None                    #Parent_window is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
@@ -43,7 +43,7 @@ class MatchReview_Model():
     exact_match_output_file = None           #Automatically create a file of exact matches for every blocking pass, so that we can generate statistics and so the user can view matches if desired.
     combined_matchreview_file = None	     #The user navigates to a .dat file, but can choose to combine it with ALL files in the same folder with the same name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     combined_exact_accepted_file = None      #Combined matched pairs (exact and accepted) for all passes in a batch
-    allow_view_combined_files = False        #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
+    allow_view_combined_files = True        #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
     viewing_one_or_all_files = None          #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix, this flag switches from "ONE" to "ALL"
     result_filename_trunc = None             #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     match_files_for_batch = None             #Files that will be combined into self.combined_matchreview_file or combined_exact_accepted_file
@@ -175,7 +175,7 @@ class MatchReview_Model():
                         if self.no_delimiters_in_result_file:
                             exactfile.write("%s %s %s %s %s %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.length_matching_text_column+10), id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
                         else:
-                            exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(self.length_matching_text_column+10), " | ", id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
+                            exactfile.write("%s | %s | %s | %s | %s | %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.length_matching_text_column+10), id_mem, memmatches.ljust(self.length_matching_text_column+10) ) )
                     else:                 #NOT exact matches - store these in the meta_values array
                         accept_wgt = accept_usr = 0                                   #accept_wgt and accept_usr flags will track rows which the user has ACCEPTED via a weight cutoff threshold (above which rows are "accepted" or an explicit selection by user click of a checkbox)
                         if self.debug: print("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches) )
@@ -505,7 +505,7 @@ class MatchReview_Model():
                             f.write("%s %s %s %s %s %s \n" % (item[0], item[1].rjust(9), item[4], item[2].ljust(self.length_matching_text_column+10), item[5], item[3].ljust(self.length_matching_text_column+10) ) )
                         else:
                             #exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(self.length_matching_text_column+10), " | ", id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
-                            f.write("%s %s %s %s %s: %s %s %s: %s \n" % (item[0], " | ", item[1].rjust(9), " | ", item[4], item[2].ljust(self.length_matching_text_column+10), " | ", item[5], item[3].ljust(self.length_matching_text_column+10) ) )
+                            f.write("%s | %s | %s | %s | %s | %s \n" % (item[0], item[1].rjust(9), item[4], item[2].ljust(self.length_matching_text_column+10), item[5], item[3].ljust(self.length_matching_text_column+10) ) )
                     i += 1
                 f.close()
         except:
@@ -609,7 +609,7 @@ class MatchReview_Model():
         head, tail = os.path.split(self.matchreview_file_selected_by_user)
         match_result_filename_trunc = self.get_result_filename_trunc(self.matchreview_file_selected_by_user)
         self.combined_exact_accepted_file = os.path.join(head, match_result_filename_trunc + "pairs_exact_accpt.dat").lower().strip()
-        if str(self.matchreview_file_selected_by_user)[-12:][:6].lower().strip() == "_pairs":
+        if str(self.matchreview_file_selected_by_user)[-12:][:6].lower().strip() == "pairs_":
             #Find all files in the same folder as that selected by the user, that also have the same filename (except for final suffix) as the user-selected file.  (Example: Myfile_Pairs_00.bat, Myfile_Pairs_01.bat, etc.)
             self.build_list_of_all_pairs_files_for_batch("good")
             if len(self.match_files_for_batch) == 0:
@@ -636,7 +636,9 @@ class MatchReview_Model():
                                 with open(nextfile) as infile:
                                     for row in infile:                                      #blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr
                                         segments = str(row).split(delimiter)
-                                        if self.debug: self.logobject.logit("Writing: %s %s %s %s \n" % (segments[0], segments[1].rjust(9), segments[4].ljust(22), segments[5].ljust(22) ), True, True, True)
+                                        if self.debug: 
+                                            self.logobject.logit("Row has len %s. Segments has len %s.  %s " % (len(row), len(segments), row ), True, True, True)
+                                            self.logobject.logit("Writing: %s %s %s %s \n" % (segments[0], segments[1].rjust(9), segments[4].ljust(22), segments[5].ljust(22) ), True, True, True)
                                         outfile.write("%s %s %s %s \n" % (segments[0], segments[1].rjust(9), segments[4].ljust(22), segments[5].ljust(22) ) )
                 except IOError as e:
                     print("I/O error({0}): {1}".format(e.errno, e.strerror))
@@ -992,7 +994,8 @@ class MatchReview_Model():
                         if self.no_delimiters_in_result_file:
                             outf.write("%s %s %s %s %s %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.max_length_matching_text+10), id_mem, memmatches.ljust(self.max_length_matching_text+10)) )
                         else:
-                            outf.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(self.max_length_matching_text+10), " | ", id_mem, memmatches.ljust(self.max_length_matching_text+10)) )
+                            #outf.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(self.max_length_matching_text+10), " | ", id_mem, memmatches.ljust(self.max_length_matching_text+10)) )
+                            outf.write("%s | %s | %s | %s | %s | %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.max_length_matching_text+10), id_mem, memmatches.ljust(self.max_length_matching_text+10) ) )
                     if read_into_meta_values_list:
                         if self.debug: print("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches) )
                         #**************************************************************************************************************
