@@ -372,7 +372,7 @@ class MatchReview_Model():
         #self.btnDisplayAllFiles = Button(self.advanced_frame, text="View all files from this batch", width=24, command=self.load_combined_files)
         #self.btnDisplayAllFiles.grid(row=0, column=1, sticky=W)
         #self.btnDisplayAllFiles.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected MatchReview files
-		if self.allow_view_combined_files:
+        if self.allow_view_combined_files:
             self.btnWriteGoodPairs = Button(self.advanced_frame, text="Combine exact and accepted pairs for this batch", width=36, command=self.combine_good_pairs_all_passes)
             self.btnWriteGoodPairs.grid(row=0, column=0, sticky=W)
             self.btnWriteGoodPairs.configure(state=NORMAL, padx=4, pady=1)       #Do not enable this button unless the user has selected MatchReview files
@@ -636,8 +636,8 @@ class MatchReview_Model():
                                 with open(nextfile) as infile:
                                     for row in infile:                                      #blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr
                                         segments = str(row).split(delimiter)
-                                        
-                                outfile.write("%s %s %s %s \n" % (segments[0], segments[1].rjust(9), segments[4].ljust(22), segments[5].ljust(22) ) )
+                                        if self.debug: self.logobject.logit("Writing: %s %s %s %s \n" % (segments[0], segments[1].rjust(9), segments[4].ljust(22), segments[5].ljust(22) ), True, True, True)
+                                        outfile.write("%s %s %s %s \n" % (segments[0], segments[1].rjust(9), segments[4].ljust(22), segments[5].ljust(22) ) )
                 except IOError as e:
                     print("I/O error({0}): {1}".format(e.errno, e.strerror))
                     self.error_message = str(e.strerror)
