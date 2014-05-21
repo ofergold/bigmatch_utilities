@@ -25,7 +25,7 @@ class MatchReview_Model():
     first, all values form the BigMatch result file (which can have 100,000+ rows in some cases) are loaded into self.meta_values.
     But we display only 30 rows at a time on screen. The user can scroll from page to page, looking for the cutoff between acceptable and non-acceptable matches.
     '''
-    debug = True
+    debug = False
     error_message = None
     parent_window = None                    #Parent_window is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
@@ -44,7 +44,7 @@ class MatchReview_Model():
     exact_match_output_file = None           #Automatically create a file of exact matches for every blocking pass, so that we can generate statistics and so the user can view matches if desired.
     combined_matchreview_file = None	     #The user navigates to a .dat file, but can choose to combine it with ALL files in the same folder with the same name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     combined_exact_accepted_file = None      #Combined matched pairs (exact and accepted) for all passes in a batch
-    allow_view_combined_files = True         #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
+    allow_view_combined_files = False        #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
     viewing_one_or_all_files = None          #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix, this flag switches from "ONE" to "ALL"
     result_filename_trunc = None             #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     match_files_for_batch = None             #Files that will be combined into self.combined_matchreview_file or combined_exact_accepted_file
