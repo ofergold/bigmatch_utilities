@@ -25,7 +25,7 @@ class MatchReview_Model():
     first, all values form the BigMatch result file (which can have 100,000+ rows in some cases) are loaded into self.meta_values.
     But we display only 30 rows at a time on screen. The user can scroll from page to page, looking for the cutoff between acceptable and non-acceptable matches.
     '''
-    debug = False
+    debug = True
     error_message = None
     parent_window = None                    #Parent_window is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
@@ -44,7 +44,7 @@ class MatchReview_Model():
     exact_match_output_file = None           #Automatically create a file of exact matches for every blocking pass, so that we can generate statistics and so the user can view matches if desired.
     combined_matchreview_file = None	     #The user navigates to a .dat file, but can choose to combine it with ALL files in the same folder with the same name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     combined_exact_accepted_file = None      #Combined matched pairs (exact and accepted) for all passes in a batch
-    allow_view_combined_files = False        #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
+    allow_view_combined_files = True         #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
     viewing_one_or_all_files = None          #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix, this flag switches from "ONE" to "ALL"
     result_filename_trunc = None             #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     match_files_for_batch = None             #Files that will be combined into self.combined_matchreview_file or combined_exact_accepted_file
@@ -61,8 +61,11 @@ class MatchReview_Model():
     result_comparison_frames_in_grid = []    #List of frame objects that can be populated with text for clerical review comparisons.
     no_delimiters_in_result_file = None      #Some users might not want field delimiters embedded in the result file
     write_descrips_in_result_file = None     #Some users might want column descriptions embedded in the result file
+    max_length_rec_id = 0                    #
+    max_length_mem_id = 0                    #
     max_length_matching_text = 0             #In order to produce justified output files, we need to know how to line up the columns (depends on the max.width of the text in this particular file)
     length_matching_text_column = 0          #In order to produce justified output files, we need to know how to line up the columns (depends on the max.width of the text in this particular file)
+    separator_for_result_files = "?   ~"     #In the BigMatch results files, this string separates the first column (weight, unique IDs and blocking field values) from the matching field values.
 
     def __init__(self, parent_window, controller, title="Linkage results -- review", bgcolor=gl_frame_color, frame_width=gl_frame_width, frame_height=gl_frame_height):	
         self.parent_window = parent_window  #Parent_wiondow is the TKinter object itself (often known as "root"
@@ -117,16 +120,17 @@ class MatchReview_Model():
             self.recvalues_file = matchreview_file.lower().strip().replace(ext, "_recflmatches" + ext)
         if self.memvalues_file is None:
             ext = matchreview_file.lower().strip()[-4:]
-            self.memvalues_file = matchreview_file.lower().strip().replace(ext, "_memflmatches" + ext)'''
+            self.memvalues_file = matchreview_file.lower().strip().replace(ext, "_memflmatches" + ext)
         #Run through a small number of rows to estimate the width of the match file text
-        sep = "?   ~"                        #In the BigMatch results files, this string separates the first column (weight, unique IDs and blocking field values) from the matching field values.
-        self.length_matching_text_column = self.est_length_of_matchfile_text(matchreview_file, sep)
+        '''
         #Traverse the specified Match Results file and extract parts of each row into a list
         print("\n TOP OF FUNCTION split_result_file() -- file: %s" % (str(matchreview_file)) )
         count = blkpass_rowcount = meta_rowid = weight_pos = 0
         self.max_length_matching_text = 20   #Start out assuming a very narrow set of matching fields -- then use the maximum width to set a "justify" line so that the results appear less ragged.
         blkpass = holdpass = ""
-        #Run thru a small number of rows hjust to get an idea of how long the matching text is, so we space the columns correctly
+        #Run thru a small number of rows just to get an idea of how long the matching text is, so we space the columns correctly
+        self.length_matching_text_column = self.estimate_matchfile_text_length(matchreview_file)
+        #Now loop thru the entire file and store values to an in-memory list, or write values to disk, as appropriate for the situation.
         with open(matchreview_file, 'r') as matchfile:
             with open(self.exact_match_output_file, 'w') as exactfile:
                 for row in matchfile:
@@ -134,7 +138,7 @@ class MatchReview_Model():
                         continue                         #Empty row
                     if str(row)[:4]=="****":             #Asterisk lines are placed in the file to denote the start of a new section of results (different blocking pass)
                         continue
-                    halves = str(row).split(sep, 1)
+                    '''GMS halves = str(row).split(sep, 1)
                     first_half = self.reduce_blank_spaces( str(halves[0]).strip() )
                     first_half = first_half.replace("  ", " ")   #Not sure why the reduce...() function didn't get rid of all double-spaces.
                     first_half_as_list = first_half.split(" ")
@@ -149,10 +153,8 @@ class MatchReview_Model():
                         blkpass = chunk1[bp_pos+3: bp_pos+5].lower().strip()
                         weight = first_half_as_list[1]
                         weight_pos = 1
-                    if blkpass != holdpass:                    #Reset this counter when we encounter a new Blocking Pass section
-                        blkpass_rowcount = 0
-                        holdpass = blkpass
-                    weight = weight.replace("+", "")
+                    '''
+                    '''GMS weight = weight.replace("+", "")
                     try:
                         weight = str(round(float(weight), 3))
                     except ValueError:
@@ -169,25 +171,39 @@ class MatchReview_Model():
                     matchvals = halves[1]                   #Second half of each row has the selected blocking/matching field values
                     matchlist = matchvals.split("~")        #Tilde separates Record File attributes from Memory File attributes, within the 2nd half of the row.
                     recmatches = self.reduce_blank_spaces(str(matchlist[0]).strip())  #Record File attributes
-                    if len(recmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
-                        self.max_length_matching_text = len(recmatches)
+                    #if len(recmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
+                    #    self.max_length_matching_text = len(recmatches)
                     memmatches = self.reduce_blank_spaces(str(matchlist[1]).strip())  #Memory File attributes
-                    if len(memmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
-                        self.max_length_matching_text = len(memmatches)
+                    #if len(memmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
+                    #    self.max_length_matching_text = len(memmatches)
+                    if self.debug: self.logobject.logit("Recmatches: %s, Memmatches: %s" % (recmatches, memmatches), True, True, True )
+                    '''
+                    #**************************************************************
+                    meta_row = self.parse_resultfile_row(row, meta_rowid)
+                    #**************************************************************
+                    blkpass = meta_row[0]
+                    if blkpass != holdpass:                    #Reset this counter when we encounter a new Blocking Pass section
+                        blkpass_rowcount = 0
+                        holdpass = blkpass
+                    weight = meta_row[1]
+                    recmatches = meta_row[2]
+                    memmatches = meta_row[3]
+                    id_rec = meta_row[4]
+                    id_mem = meta_row[5]
+                    #meta_rowid = meta_row[6]
+                    #blkfldvals = meta_row[7]
                     if recmatches == memmatches:            #Exact matches are written to a separate file
-                        print("Exact match: %s -|- %s" % (recmatches, memmatches) ) 
+                        if self.debug: self.logobject.logit("Exact match: %s -|- %s" % (recmatches, memmatches), True, True, True ) 
                         if self.no_delimiters_in_result_file:
-                            exactfile.write("%s %s %s %s %s %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.length_matching_text_column+10), id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
+                            exactfile.write("%s %s %s %s %s %s \n" % (blkpass, weight.rjust(9), id_rec.ljust(self.max_length_rec_id), recmatches.ljust(self.length_matching_text_column+10), id_mem.ljust(self.max_length_mem_id), memmatches.ljust(self.length_matching_text_column+10)) )
                         else:
-                            exactfile.write("%s | %s | %s | %s | %s | %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.length_matching_text_column+10), id_mem, memmatches.ljust(self.length_matching_text_column+10) ) )
+                            exactfile.write("%s | %s | %s | %s | %s | %s \n" % (blkpass, weight.rjust(9), id_rec.ljust(self.max_length_rec_id), recmatches.ljust(self.length_matching_text_column+10), id_mem.ljust(self.max_length_mem_id), memmatches.ljust(self.length_matching_text_column+10) ) )
                     else:                 #NOT exact matches - store these in the meta_values array
-                        accept_wgt = accept_usr = 0                                   #accept_wgt and accept_usr flags will track rows which the user has ACCEPTED via a weight cutoff threshold (above which rows are "accepted" or an explicit selection by user click of a checkbox)
-                        if self.debug: print("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches) )
+                        '''GMS accept_wgt = accept_usr = 0                                   #accept_wgt and accept_usr flags will track rows which the user has ACCEPTED via a weight cutoff threshold (above which rows are "accepted" or an explicit selection by user click of a checkbox) '''
+                        if self.debug: self.logobject.logit("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches), True, True, True )
                         #**************************************************************************************************************
                         #Populate the meta_values array (list of lists) that will be used to populate the Entry Grid
-                        self.read_result_line_into_meta_values(blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, blkfldvals, accept_wgt, accept_usr)
-                        #meta_temp = [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr]     #meta_temp is a LIST consisting of one row from the Review File
-                        #self.meta_values.append(meta_temp)		          #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.\
+                        self.meta_values.append(meta_row)		          #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.\
                         #**************************************************************************************************************
                         #print("\n -- ROW %s" % (count) )
                         #print("rec: %s" % (recmatches) )
@@ -200,24 +216,69 @@ class MatchReview_Model():
         self.matchfile_rows = count
         self.logobject.logit("\n At end of split_result_file(), meta_values has %s rows, and the matchfile has %s rows." % (len(self.meta_values) , self.matchfile_rows), True, True, True )  
         self.sort_list()
-
-    def est_length_of_matchfile_text(self, matchreview_file, sep):
+     
+    def parse_resultfile_row(self, row, meta_rowid=None, update_column_widths=None):
+        halves = str(row).split(self.separator_for_result_files, 1)
+        first_half = self.reduce_blank_spaces( str(halves[0]).strip() )
+        first_half = first_half.replace("  ", " ")   #Not sure why the reduce...() function didn't get rid of all double-spaces.
+        first_half_as_list = first_half.split(" ")
+        #if self.debug: self.logobject.logit("1st half: %s" % (first_half), True, True, True )
+        chunk1 = first_half_as_list[0].lower().strip() #First chunk of text could be Weight (if the BigMatch result file is unaltered) -OR- it could be Blocking Pass number (if file was altered by this GUI or some other post-process)
+        bp_pos = chunk1.find("bp:")            #If the file being reviewed has been post-processed by this GUI to combine results from multiple blocking passes, then it should have the string "bp:" in every row, specifying which blocking pass the row was generated by.
+        if bp_pos == -1:           #If the bloaking pass number has not been added to this results file (it usually is not added), then we can discover the blocking pass by parsing the Bigmatch result file name.
+            blkpass = self.get_blocking_pass_num_from_results_filename()                   # "0"
+            weight = chunk1
+            weight_pos = 0
+        else:
+            blkpass = chunk1[bp_pos+3: bp_pos+5].lower().strip()
+            weight = first_half_as_list[1]
+            weight_pos = 1
+        weight = weight.replace("+", "")
+        try:
+            weight = str(round(float(weight), 3))
+        except ValueError:
+            weight = str(weight)                #In case of unexpected non-numeric values
+            #continue
+        #Now grab the other values within the first section of this row (note that this code assumes NO BLANKS in unique ID fields!)
+        id_rec = first_half_as_list[weight_pos +1]         #First part of each row has weight and ID numbers, and blocking field values
+        id_mem = first_half_as_list[weight_pos +2]         #First part of each row has weight and ID numbers, and blocking field values
+        blkfldvals = first_half_as_list[3:]                #Following the Weight and two Unique IDs, an indefinite number of Blocking Values appear.
+        blkfldvals = ''.join(str(itm).strip().ljust(len(itm.strip())+1) for itm in blkfldvals).strip()     #Convert indefinite number of Blocking Field Values from a list to a string
+        blkfldvals = blkfldvals.replace("       ", "")     #Remove long blank spaces
+        if self.debug: self.logobject.logit("Next: first_half_as_list: %s, weight: %s | blkpass: %s, id_rec:%s, id_mem: %s, blkvals: '%s'" % (first_half_as_list, weight, blkpass, id_rec, id_mem, blkfldvals), True, True, True )
+        #Move on to the second half of the row:
+        matchvals = halves[1]                   #Second half of each row has the selected blocking/matching field values
+        matchlist = matchvals.split("~")        #Tilde separates Record File attributes from Memory File attributes, within the 2nd half of the row.
+        recmatches = self.reduce_blank_spaces(str(matchlist[0]).strip())  #Record File attributes
+        memmatches = self.reduce_blank_spaces(str(matchlist[1]).strip())  #Memory File attributes
+        #In order to space the columns in our output files, we need to know IN ADVANCE how wide these columns are.  So we parse 50 rows in advance, and hope that this captures a good estimate of the maximum column widths.
+        if update_column_widths:
+            if len(str(id_rec).strip()) > self.max_length_rec_id:
+                self.max_length_rec_id = len(str(id_rec).strip())
+            if len(str(id_mem).strip()) > self.max_length_mem_id:
+                self.max_length_mem_id = len(str(id_mem).strip())
+        if self.debug: self.logobject.logit("Recmatches: %s, Memmatches: %s" % (recmatches, memmatches), True, True, True )
+        accept_wgt = accept_usr = 0                       #accept_wgt and accept_usr flags will track rows which the user has ACCEPTED via a weight cutoff threshold (above which rows are "accepted" or an explicit selection by user click of a checkbox)
+        if self.debug: self.logobject.logit("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches), True, True, True )
+        #**************************************************************************************************************
+        #Populate the meta_values array (list of lists) that will be used to populate the Entry Grid
+        meta_row = [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, blkfldvals, accept_wgt, accept_usr]     #meta_temp is a LIST consisting of one row from the Review File
+        return meta_row
+        
+    def estimate_matchfile_text_length(self, matchreview_file):
         with open(matchreview_file, 'r') as matchfile:
             i = 0
             for row in matchfile:
                 if i > 50:
                     break
-                halves = str(row).split(sep, 1)
-                matchvals = halves[1]                   #Second half of each row has the selected blocking/matching field values
-                matchlist = matchvals.split("~")        #Tilde separates Record File attributes from Memory File attributes, within the 2nd half of the row.
-                recmatches = self.reduce_blank_spaces(str(matchlist[0]).strip())  #Record File attributes
-                if len(recmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
-                    self.max_length_matching_text = len(recmatches)
-                memmatches = self.reduce_blank_spaces(str(matchlist[1]).strip())  #Memory File attributes
-                if len(memmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
-                    self.max_length_matching_text = len(memmatches)
+                #**************************************************************
+                update_column_widths = True
+                meta_row = self.parse_resultfile_row(row, 0, update_column_widths)
+                #**************************************************************
                 i += 1
             matchfile.close()
+        self.max_length_rec_id = self.max_length_rec_id +2
+        self.max_length_mem_id = self.max_length_mem_id +2
         self.length_matching_text_column = self.max_length_matching_text +10                            #Account for the fact that some rows might be wider than any of the first few rows
         return self.length_matching_text_column
 
@@ -405,7 +466,7 @@ class MatchReview_Model():
             self.logobject.logit("\nIn handle_jump_to_weight(), desired_weight is %s, sort_asc_or_desc is %s" % (desired_weight, self.sort_asc_or_desc), True, True, True )
             i = 0
             new_start_row = 0
-            for item in self.meta_values:                       #meta_values is a list of lists storing the content from the two files that were matched (components: blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid)
+            for item in self.meta_values:                       #meta_values is a list of lists storing the content from the two files that were matched (components: blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, blkfldvals)
                 if self.debug: self.logobject.logit("Next weight %s. Greater than %s? %s. Lower than %s? %s" % (item[1], desired_weight, float(str(item[1])) >= desired_weight, desired_weight, float(str(item[1])) <= desired_weight), True, True, True )
                 if self.sort_asc_or_desc.lower().strip() == "asc":              #List is currently sorted ASCENDING
                     if float(str(item[1])) >= desired_weight:       #item[1] is the match weight for this row.  #This row has a weight greater than or equal to the weight that the user wants to "jump to" in the list. So set this row as the "Start Row" for viewing a block of 30 records on screen.
@@ -508,10 +569,10 @@ class MatchReview_Model():
                         ##exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.length_matching_text_column+10), id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
                         if self.no_delimiters_in_result_file:
                             #exactfile.write("%s %s %s %s %s %s \n" % (blkpass, weight.rjust(9), id_rec, recmatches.ljust(self.length_matching_text_column+10), id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
-                            f.write("%s %s %s %s %s %s \n" % (item[0], item[1].rjust(9), item[4], item[2].ljust(self.length_matching_text_column+10), item[5], item[3].ljust(self.length_matching_text_column+10) ) )
+                            f.write("%s %s %s %s %s %s \n" % (item[0], item[1].rjust(9), item[4].ljust(self.max_length_rec_id), item[2].ljust(self.length_matching_text_column+10), item[5].ljust(self.max_length_mem_id), item[3].ljust(self.length_matching_text_column+10) ) )
                         else:
                             #exactfile.write("%s %s %s %s %s: %s %s %s: %s \n" % (blkpass, " | ", weight.rjust(9), " | ", id_rec, recmatches.ljust(self.length_matching_text_column+10), " | ", id_mem, memmatches.ljust(self.length_matching_text_column+10)) )
-                            f.write("%s | %s | %s | %s | %s | %s \n" % (item[0], item[1].rjust(9), item[4], item[2].ljust(self.length_matching_text_column+10), item[5], item[3].ljust(self.length_matching_text_column+10) ) )
+                            f.write("%s | %s | %s | %s | %s | %s \n" % (item[0], item[1].rjust(9), item[4].ljust(self.max_length_rec_id), item[2].ljust(self.length_matching_text_column+10), item[5].ljust(self.max_length_rec_id), item[3].ljust(self.length_matching_text_column+10) ) )
                     i += 1
                 f.close()
         except:
@@ -539,11 +600,13 @@ class MatchReview_Model():
         if callback_string.lower().strip()[:4] == "load" or callback_string.lower().strip()[:4] == "open":
             self.matchreview_file_selected_by_user = file_name_with_path           #File selected to be reviewed -- BUT user can choose to combine this with others from the same batch
             self.matchreview_file_to_load_from = file_name_with_path               #For now, set this to the selected file, but later it might be changed to a COMBINED file that includes the selected file and its batch-mates.
-            if not self.matchreview_file_to_save_to:
-                self.matchreview_file_to_save_to = self.get_default_saveto_filename()  #By default, results are saved to a .dat file with the same name as the source file, but with suffix "_ACCEPTED"
-                self.filepathobj_save_to.update_filepath_display(self.matchreview_file_to_save_to)	#Make sure the FilePath object also registers this Save_To file.
-                self.exact_match_output_file = self.get_exact_match_filename()				
-                print("\n Matchreview_file_to_save_to is being set to: %s" % (self.matchreview_file_to_save_to) )
+            #For this module, it's important that the SAVE TO file should be named so that it is recognized as associated with the Match Result file.
+            #if not self.matchreview_file_to_save_to:
+            self.filepathobj_save_to.clear_file()             #If the user selects a new Match Result file, clear the Save To file, since in this module the Save To should follow a standard naming convention based on the Match Review file.
+            self.matchreview_file_to_save_to = self.get_default_saveto_filename()  #By default, results are saved to a .dat file with the same name as the source file, but with suffix "_ACCEPTED"
+            self.filepathobj_save_to.update_filepath_display(self.matchreview_file_to_save_to)	#Make sure the FilePath object also registers this Save_To file.
+            self.exact_match_output_file = self.get_exact_match_filename()				
+            self.logobject.logit("\n Matchreview_file_to_save_to is being set to: %s" % (self.matchreview_file_to_save_to), True, True, True )
             if self.matchreview_file_to_load_from:            #and self.matchreview_file_to_save_to:
                 self.load_single_file()                       #Refresh the view when the user selects (loads) a new file.
             else:                                             #No file was specified (user might have cleared out a previously selected file name) 
@@ -642,10 +705,17 @@ class MatchReview_Model():
                                 with open(nextfile) as infile:
                                     for row in infile:                                      #blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr
                                         segments = str(row).split(delimiter)
+                                        #Note! these positions are not the same as position in the Meta_Values list. These are read from the ACCEPTED or EXACT file, to which only a subset of meta_values was written.
+                                        blkpass = str(segments[0]).strip()
+                                        weight = str(segments[1]).strip()
+                                        rec_id = str(segments[2]).strip()
+                                        recmatches = str(segments[3]).strip()
+                                        mem_id = str(segments[4]).strip()
+                                        memmatches = str(segments[5]).strip()
                                         if self.debug: 
-                                            self.logobject.logit("Row has len %s. Segments has len %s.  %s " % (len(row), len(segments), row ), True, True, True)
-                                            self.logobject.logit("Writing: %s %s %s %s \n" % (segments[0], segments[1].rjust(9), segments[4].ljust(22), segments[5].ljust(22) ), True, True, True)
-                                        outfile.write("%s %s %s %s \n" % (segments[0], segments[1].rjust(9), segments[4].ljust(22), segments[5].ljust(22) ) )
+                                            self.logobject.logit("Row has len %s. Segments has len %s.  %s Segments: %s" % (len(row), len(segments), row, segments ), True, True, True)
+                                            self.logobject.logit("Writing: %s %s %s %s \n" % (blkpass, weight.rjust(9), rec_id.ljust(self.max_length_rec_id), mem_id.ljust(self.max_length_mem_id) ), True, True, True)
+                                        outfile.write("%s %s %s %s \n" % (blkpass, weight.rjust(9), rec_id.ljust(self.max_length_rec_id), mem_id.ljust(self.max_length_mem_id) ) )
                 except IOError as e:
                     print("I/O error({0}): {1}".format(e.errno, e.strerror))
                     self.error_message = str(e.strerror)
@@ -935,7 +1005,6 @@ class MatchReview_Model():
         count = blkpass_rowcount = meta_rowid = weight_pos = 0
         self.max_length_matching_text = 20   #Start out assuming a very narrow set of matching fields -- then use the maximum width to set a "justify" line so that the results appear less ragged.
         blkpass = holdpass = ""
-        sep = "?   ~"                    #In the BigMatch results files, this string separates the first column (weight and unique ID) from the blocking and matching field values.
         with open(infile, 'r') as infl:
             with open(outfile, 'w') as outf:
                 for row in infl:
@@ -943,45 +1012,18 @@ class MatchReview_Model():
                         continue                         #Empty row
                     if str(row)[:4]=="****":             #Asterisk lines are placed in the file to denote the start of a new section of results (different blocking pass)
                         continue
-                    halves = str(row).split(sep, 1)
-                    first_half = self.reduce_blank_spaces( str(halves[0]).strip() )
-                    first_half_as_list = first_half.split(" ")
-                    chunk1 = first_half_as_list[0].lower().strip() #First chunk of text could be Weight (if the BigMatch result file is unaltered) -OR- it could be Blocking Pass number (if file was altered by this GUI or some other post-process)
-                    bp_pos = chunk1.find("bp:")            #If the file being reviewed has been post-processed by this GUI to combine results from multiple blocking passes, then it should have the string "bp:" in every row, specifying which blocking pass the row was generated by.
-                    if bp_pos == -1:
-                        blkpass = self.get_blocking_pass_num_from_results_filename()                   # "0"
-                        weight = chunk1
-                        weight_pos = 0
-                    else:
-                        blkpass = chunk1[bp_pos+3: bp_pos+5].lower().strip()
-                        weight = first_half_as_list[1]
-                        weight_pos = 1
+                    #**************************************************************
+                    meta_row = self.parse_resultfile_row(row, meta_rowid)
+                    #**************************************************************
+                    blkpass = meta_row[0]
                     if blkpass != holdpass:                    #Reset this counter when we encounter a new Blocking Pass section
                         blkpass_rowcount = 0
                         holdpass = blkpass
-                    weight = weight.replace("+", "")
-                    try:
-                        weight = str(round(float(weight), 3))
-                    except ValueError:
-                        weight = str(weight)                #In case of unexpected non-numeric values
-                        #continue
-                    #Now grab the other values within the first section of this row (note that this code assumes NO BLANKS in unique ID fields!)
-                    id_rec = first_half_as_list[weight_pos +1]         #First part of each row has weight and ID numbers, and blocking field values
-                    id_mem = first_half_as_list[weight_pos +2]         #First part of each row has weight and ID numbers, and blocking field values
-                    blkfldvals = first_half_as_list[3:]                #Following the Weight and two Unique IDs, an indefinite number of Blocking Values appear.
-                    blkfldvals = ''.join(str(itm).strip().ljust(len(itm.strip())+1) for itm in blkfldvals).strip()     #Convert indefinite number of Blocking Field Values from a list to a string
-                    blkfldvals = blkfldvals.replace("       ", "")     #Remove long blank spaces
-                    accept_wgt = accept_usr = 0                   #accept_wgt and accept_usr flags will track rows which the user has ACCEPTED via a weight cutoff threshold (above which rows are "accepted" or an explicit selection by user click of a checkbox)
-                    #print("Next: weight: %s, %s blkpass: %s, id_rec:%s, id_mem: %s, blkvals: '%s'" % (weight, "||", blkpass, id_rec, id_mem, blkfldvals) )
-                    #Move on to the second half of the row:
-                    matchvals = halves[1]                   #Second half of each row has the selected blocking/matching field values
-                    matchlist = matchvals.split("~")        #Tilde separates Record File attributes from Memory File attributes, within the 2nd half of the row.
-                    recmatches = self.reduce_blank_spaces(str(matchlist[0]).strip())  #Record File attributes
-                    if len(recmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
-                        self.max_length_matching_text = len(recmatches)
-                    memmatches = self.reduce_blank_spaces(str(matchlist[1]).strip())  #Memory File attributes
-                    if len(memmatches) > self.max_length_matching_text:                                      #Use the maximum width to set a "justify" line so that the results appear less ragged
-                        self.max_length_matching_text = len(memmatches)
+                    weight = meta_row[1]
+                    recmatches = meta_row[2]
+                    memmatches = meta_row[3]
+                    id_rec = meta_row[4]
+                    id_mem = meta_row[5]
                     #********************************************************************************************
                     #Processing depends on whether this row represents an EXACT MATCH or a probabilistic weight
                     write_this_row = store_row_to_meta_values = False
@@ -1007,7 +1049,7 @@ class MatchReview_Model():
                         if self.debug: print("Adding row to meta_values: %s, %s, %s, %s" % (blkpass, weight, recmatches, memmatches) )
                         #**************************************************************************************************************
                         #Populate the META_VALUES list (list of lists) that will be used to populate the Entry Grid
-                        self.read_result_line_into_meta_values(blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, blkfldvals, accept_wgt, accept_usr)
+                        self.meta_values.append(meta_row)		          #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.\
                         #**************************************************************************************************************
                     #if self.debug:
                         #print("\n -- ROW %s" % (count) )
@@ -1022,10 +1064,6 @@ class MatchReview_Model():
         self.logobject.logit("\n At end of read_write_bigmatch_result_file(), meta_values has %s rows, and the matchfile has %s rows." % (len(self.meta_values) , self.matchfile_rows), True, True, True )  
         self.sort_list()
 
-    def read_result_line_into_meta_values(self, blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, blkfldvals, accept_wgt, accept_usr):
-        meta_temp = [blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, accept_wgt, accept_usr]     #meta_temp is a LIST consisting of one row from the Review File
-        self.meta_values.append(meta_temp)		          #meta_values is a LIST of LISTS, consisting of one "outer" list representing all the rows from the data dictionary, and an "inner" list consisting of the cell values for a single row.\
-        
 
 #******************************************************************************
 # NEW CLASS SECTION
