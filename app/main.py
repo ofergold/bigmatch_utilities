@@ -64,12 +64,6 @@ class BigMatchController():
     matchreview_model = None
     error_ui = None            #Frame for displaying error information at runtime
     datadict_model = None
-    #datadictobj_recfile = None
-    #datadictobj_memfile = None
-    #filepathobj_recfile	= None
-    #filepathobj_memfile = None
-    #filepathobj_recfile_dict = None
-    #filepathobj_memfile_dict = None
     dir_last_opened = None
     datadict_dir_last_opened = None
     blockingpass_dir_last_opened = None
@@ -95,6 +89,7 @@ class BigMatchController():
     os_platform = None
     os_release = None
     uid = None
+    gs = None
 	
     def __init__(self, parent_window):
         self.parent_window = parent_window
@@ -116,6 +111,7 @@ class BigMatchController():
         print("\n os_name: %s, os_platform: %s, os_release: %s" % (self.os_name, self.os_platform, self.os_release) )
         if (self.host_name == "chrsd1-gsanders" and self.uid == "gsanders"):
             self.enable_logging = True
+            self.gs = True
         elif (self.host_name == "greg-hp" and self.uid == "greg") or (self.host_name == "gregory" and self.uid == "lisa"):
             self.enable_logging = True
         if self.enable_logging:
@@ -174,6 +170,7 @@ class BigMatchController():
 
         reviewMenu = Menu(menubar, tearoff=0)
         reviewMenu.add_command(label="Review match results", command=self.load_match_review)
+        #reviewMenu.add_command(label="Combine reviewed results", command=self.load_combine_reviewed_results)
         menubar.add_cascade(label="Match results", menu=reviewMenu)
 
         '''def get_command_for_file_convert_sas_to_text():
@@ -335,6 +332,14 @@ class BigMatchController():
         self.matchreview_model = MatchReview_Model(self.parent_window, self)
         #self.matchreview_model.display_view(self.bigcanvas.bigframe)
         self.matchreview_model.display_views(self.bigcanvas.bigframe, 1)
+
+    def load_combine_reviewed_results(self):
+        self.bigcanvas.bigframe.clear_canvas()       #Hide all frame objects
+        self.load_splash("Chapin Hall's BigMatch user interface -- combine reviewed match results")
+        self.matchreview_model = MatchReview_Model(self.parent_window, self)
+        #self.matchreview_model.display_view(self.bigcanvas.bigframe)
+        self.matchreview_model.display_views(self.bigcanvas.bigframe, 1)
+
 
     def load_error_display(self):
         print("In main.load_error_display()")

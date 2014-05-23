@@ -317,7 +317,7 @@ class EntryGrid(Frame):
             if int(cell["x"]) == x:
                 if int(cell["y"]) == y:
                     return_value = str(cell["object"].value.get())
-                    print("return value: %s" % (return_value))
+                    if self.debug: print("return value: %s" % (return_value))
                     break
         return return_value
 

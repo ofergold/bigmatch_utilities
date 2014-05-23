@@ -25,7 +25,7 @@ class MatchReview_Model():
     first, all values form the BigMatch result file (which can have 100,000+ rows in some cases) are loaded into self.meta_values.
     But we display only 30 rows at a time on screen. The user can scroll from page to page, looking for the cutoff between acceptable and non-acceptable matches.
     '''
-    debug = False
+    debug = True
     error_message = None
     parent_window = None                    #Parent_window is the TKinter object itself (often known as "root"
     controller = None                       #Controller is the BigMatchController class in main.py 
@@ -44,7 +44,7 @@ class MatchReview_Model():
     exact_match_output_file = None           #Automatically create a file of exact matches for every blocking pass, so that we can generate statistics and so the user can view matches if desired.
     combined_matchreview_file = None	     #The user navigates to a .dat file, but can choose to combine it with ALL files in the same folder with the same name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     combined_exact_accepted_file = None      #Combined matched pairs (exact and accepted) for all passes in a batch
-    allow_view_combined_files = False         #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
+    allow_view_combined_files = True         #Allowing the user to combine BigMatch results files and handle the entire batch at once is an advanced feature, not for casual users.
     viewing_one_or_all_files = None          #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix, this flag switches from "ONE" to "ALL"
     result_filename_trunc = None             #If the user chooses to combine the selected file with ALL files in the same folder sharing a similar name but different suffix (Mymatch_Pairs_00.dat would be combined with Mymatch_Pairs_01.dat, etc.)
     match_files_for_batch = None             #Files that will be combined into self.combined_matchreview_file or combined_exact_accepted_file
@@ -66,7 +66,6 @@ class MatchReview_Model():
     max_length_matching_text = 0             #In order to produce justified output files, we need to know how to line up the columns (depends on the max.width of the text in this particular file)
     length_matching_text_column = 0          #In order to produce justified output files, we need to know how to line up the columns (depends on the max.width of the text in this particular file)
     separator_for_result_files = "?   ~"     #In the BigMatch results files, this string separates the first column (weight, unique IDs and blocking field values) from the matching field values.
-    accept_threshold = None                  #The user will decide what the cutoff is for acceptable match weights.
 
     def __init__(self, parent_window, controller, title="Linkage results -- review", bgcolor=gl_frame_color, frame_width=gl_frame_width, frame_height=gl_frame_height):	
         self.parent_window = parent_window  #Parent_wiondow is the TKinter object itself (often known as "root"
@@ -116,7 +115,6 @@ class MatchReview_Model():
         if not matchreview_file:
             self.handle_error("No result file was specified")
             return
-        self.clear_meta_values()                              #Delete the existing list of result file rows
         '''if self.recvalues_file is None:
             ext = matchreview_file.lower().strip()[-4:]
             self.recvalues_file = matchreview_file.lower().strip().replace(ext, "_recflmatches" + ext)
@@ -267,19 +265,21 @@ class MatchReview_Model():
         #When we re-sort, refresh the display and go back to the Top of the record list.
         if self.view_object is not None:
             self.view_object.start_row = 0
-            self.view_object.load_or_reload_grid()
+            self.view_object.repopulate_grid()
+        #Refresh the state of sort buttons:
+        self.enable_disable_buttons()
 
     def sort_list_ascending(self):
         self.sort_asc_or_desc = "ASC"
         self.sort_list()
         if self.view_object is not None:
-            self.view_object.load_or_reload_grid()
+            self.view_object.repopulate_grid()
 
     def sort_list_descending(self):
         self.sort_asc_or_desc = "DESC"
         self.sort_list()
         if self.view_object is not None:
-            self.view_object.load_or_reload_grid()
+            self.view_object.repopulate_grid()
 
     def display_openfile_dialogs(self, container, default_filepath=''):
         file_types = [('All files', '*'), ('Text files', '*.csv;*.txt', '*.dat')]
@@ -310,14 +310,130 @@ class MatchReview_Model():
         del self.meta_values[0:len(self.meta_values)]
         self.meta_values = []
 
-    def catch_jump_to_weight_change(self, val1=None, val2=None, val3=None, val4=None):
-        if self.debug: self.logobject.logit("\n\nJUMP-TO-WEIGHT VAR CHANGED - parms are %s %s %s" % (val1, val2, val3), True, True, True )
-        self.handle_jump_to_weight()
+    def display_user_buttons(self, container):
+        '''Function display_user_buttons shows one or more buttons near top of page for common user functions, so the user doesn't need to constantly hit the system menus. '''
+        self.button_frame = Frame(container)
+        if str(type(container)).lower().find(".tk") == -1:							#For testing, we might display this object directly in the Tkinter main window.  If this is the case, then don't call get_widget_position().
+            stackslot = container.get_widget_position(self.button_frame, "MatchReview_Model.display_user_buttons()")
+        else:
+            stackslot = 0
+        self.button_frame.grid(row=stackslot, column=0, sticky=EW)
+        self.button_frame.configure(background=self.bgcolor, padx=4, pady=1)
+        #We need a second button frame for this module
+        self.button_frame2 = Frame(container)
+        stackslot = container.get_widget_position(self.button_frame2, "MatchReview_Model.display_user_buttons_2()")
+        self.button_frame2.grid(row=stackslot, column=0, sticky=EW)
+        self.button_frame2.configure(background=self.bgcolor, padx=4, pady=1)
+        #self.btnDisplayAllFiles = Button(self.button_frame, text="View all files from this batch", width=24, command=self.load_combined_files)
+        #self.btnDisplayAllFiles.grid(row=0, column=1, sticky=W)
+        #self.btnDisplayAllFiles.configure(state=DISABLED)       #Do not enable this button unless the user has selected MatchReview files
+		
+        self.btnNextPage = Button(self.button_frame, text="Next", width=12, command=self.scroll_page)
+        self.btnNextPage.grid(row=0, column=0, sticky=W)
+        self.btnNextPage.configure(state=DISABLED, padx=4, pady=1)
+		
+        self.btnPrevPage = Button(self.button_frame, text="Back", width=12, command=self.scroll_backwards)
+        self.btnPrevPage.grid(row=0, column=1, sticky=W)
+        self.btnPrevPage.configure(state=DISABLED, padx=4, pady=1)
+        
+        self.btnSortDesc = Button(self.button_frame, text="Sort Descending", width=16, command=self.sort_list_descending)
+        self.btnSortDesc.grid(row=0, column=2, sticky=W)
+        self.btnSortDesc.configure(state=DISABLED, padx=4, pady=1)            #Disable this button if the list is already sorted Descending
+		
+        self.btnSortAsc = Button(self.button_frame, text="Sort Ascending", width=16, command=self.sort_list_ascending)
+        self.btnSortAsc.grid(row=0, column=3, sticky=W)
+        self.btnSortAsc.configure(state=DISABLED, padx=4, pady=1)            #Disable this button if the list is already sorted Ascending
+        
+        #Second user_buttons frame to hold weight-based manipulations
+        #User can jump to rows with a specific weight here.
+        self.lblJumpToWeight = Label(self.button_frame2, text="Jump to weight: ")
+        self.lblJumpToWeight.grid(row=0, column=0, sticky=W) 
+        self.lblJumpToWeight.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
+
+        self.jump_to_weight = StringVar(self.button_frame2)
+        self.jump_to_weight.set(8)                      #If no rows are found with this weight, the next highest weight found will be used. If none found, then no action.
+        self.jump_to_weight.trace("w", self.catch_jump_to_weight_change)
+        txtJumpTo = Entry(self.button_frame2)
+        txtJumpTo.grid(row=0, column=1, sticky=W)
+        txtJumpTo.config(textvariable=self.jump_to_weight, background=self.bgcolor, width=5)
+        txtJumpTo.bind(sequence="<FocusOut>", func=self.handle_jump_to_weight)
+        txtJumpTo.bind(sequence="<Return>", func=self.handle_jump_to_weight)
+        #txtJumpTo.bind(sequence="<ButtonRelease-1>", func=self.handle_jump_to_weight)
+        
+        #User can set the threshold for ACCEPTANCE here.
+        self.lblAcceptAbove = Label(self.button_frame2, text="Accept above: ")
+        self.lblAcceptAbove.grid(row=0, column=2, sticky=W) 
+        self.lblAcceptAbove.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
+
+        ''' GMS spinner is not ideal, change to Entry		
+        #self.accept_threshold = StringVar(self.button_frame2)
+        #self.accept_threshold.set(10)
+        #spn = Spinbox(self.button_frame2, from_=0, to=30)
+        #spn.grid(row=0, column=3, sticky=W)
+        #spn.config(textvariable=self.accept_threshold, background=self.bgcolor, width=5)
+        #spn.bind(sequence="<FocusOut>", func=self.spinhandler)
+        #spn.bind(sequence="<Return>", func=self.spinhandler)
+        #spn.bind(sequence="<ButtonRelease-1>", func=self.spinhandler)  '''
+	    
+        self.accept_threshold = StringVar(self.button_frame2)
+        self.accept_threshold.set(10)
+        self.accept_threshold.trace("w", self.catch_threshold_change)
+        spn = Entry(self.button_frame2)
+        spn.grid(row=0, column=3, sticky=W)
+        spn.config(textvariable=self.accept_threshold, background=self.bgcolor, width=5)
+        spn.bind(sequence="<FocusOut>", func=self.spinhandler)
+        spn.bind(sequence="<Return>", func=self.spinhandler)
+        spn.bind(sequence="<ButtonRelease-1>", func=self.spinhandler)
+        
+        self.btnSaveToDictFile = Button(self.button_frame2, text="Write accepted pairs to file", width=20, command=self.write_accepted_pairs)
+        self.btnSaveToDictFile.grid(row=0, column=4, sticky=W)
+        self.btnSaveToDictFile.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected a MatchResults file to save as
+
+
+        #Create a message region to display notifications to the user
+        self.message_region = Message(self.button_frame2, text="")              
+        self.message_region.grid(row=0, column=5, sticky=E)
+        kw = {"anchor":E, "width":800, "foreground":"dark green", "background":self.bgcolor, "borderwidth":1, "font":("Arial", 12, "bold"), "padx":8, "pady":3 }  
+        self.message_region.configure(**kw)
+
+    def display_advanced_buttons(self, container):
+        '''Function display_advanced_buttons shows advanced features IF the user is authorized and explicitly chooses to open this panel.. '''
+        self.advanced_frame = Frame(container)
+        if str(type(container)).lower().find(".tk") == -1:							#For testing, we might display this object directly in the Tkinter main window.  If this is the case, then don't call get_widget_position().
+            stackslot = container.get_widget_position(self.advanced_frame, "MatchReview_Model.display_user_buttons()")
+        else:
+            stackslot = 0
+        self.advanced_frame.grid(row=stackslot, column=0, sticky=EW)
+        self.advanced_frame.configure(background=self.bgcolor, padx=4, pady=1)
+		
+        #self.btnDisplayOneFile = Button(self.advanced_frame, text="View the selected file", width=24, command=self.load_single_file)
+        #self.btnDisplayOneFile.grid(row=0, column=0, sticky=W)
+        #self.btnDisplayOneFile.configure(state=DISABLED, padx=4, pady=1)        #Do not enable this button unless the user has selected MatchReview files
+		
+        #self.btnDisplayAllFiles = Button(self.advanced_frame, text="View all files from this batch", width=24, command=self.load_combined_files)
+        #self.btnDisplayAllFiles.grid(row=0, column=1, sticky=W)
+        #self.btnDisplayAllFiles.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected MatchReview files
+        if self.allow_view_combined_files:
+            self.btnWriteGoodPairs = Button(self.advanced_frame, text="Combine exact and accepted pairs for this batch", width=36, command=self.combine_good_pairs_all_passes)
+            self.btnWriteGoodPairs.grid(row=0, column=0, sticky=W)
+            self.btnWriteGoodPairs.configure(state=NORMAL, padx=4, pady=1)       #Do not enable this button unless the user has selected MatchReview files
+
+        #By default the list is sorted by weight. But user could opt for a different sort order.
+        self.lblSortBy = Label(self.advanced_frame, text="Sort on: ")
+        self.lblSortBy.grid(row=0, column=1, sticky=W) 
+        self.lblSortBy.configure(background=self.bgcolor, font=("Arial", 9, "normal"), borderwidth=0, width=7, anchor=E, padx=4, pady=1)
+        var = StringVar(self.advanced_frame)
+        var.set("Blocking Pass+Weight")
+        value_list = ["Blocking Pass+Weight", "Weight"]
+        self.optSortBy = OptionMenu(self.advanced_frame, var, *value_list, command=lambda x:self.change_sort_column(var) )
+        self.optSortBy.grid(row=0, column=2, sticky=W)
+        self.optSortBy.config(font=('calibri',(9)), bg='light grey', width=18, padx=4, pady=1)
+        self.optSortBy['menu'].config(background=self.bgcolor, font=("calibri",(11))) 
 
     def handle_jump_to_weight(self, parm=None):
         if not self.meta_values or not self.view_object:
             return
-        if self.debug: self.logobject.logit("\nJumpToWeight: %s" % (self.jump_to_weight.get()), True, True, True )
+        print("\nJumpToWeight: %s" % (self.jump_to_weight.get()) )
         if not self.jump_to_weight.get():
             return
         try:
@@ -326,14 +442,14 @@ class MatchReview_Model():
             i = 0
             new_start_row = 0
             for item in self.meta_values:                       #meta_values is a list of lists storing the content from the two files that were matched (components: blkpass, weight, recmatches, memmatches, id_rec, id_mem, meta_rowid, blkfldvals)
-                if self.debug: self.logobject.logit("Next weight %s. Greater than jump-to weight %s? %s. Lower than %s? %s" % (item[1], desired_weight, float(str(item[1])) >= desired_weight, desired_weight, float(str(item[1])) <= desired_weight), True, True, True )
+                if self.debug: self.logobject.logit("Next weight %s. Greater than %s? %s. Lower than %s? %s" % (item[1], desired_weight, float(str(item[1])) >= desired_weight, desired_weight, float(str(item[1])) <= desired_weight), True, True, True )
                 if self.sort_asc_or_desc.lower().strip() == "asc":              #List is currently sorted ASCENDING
                     if float(str(item[1])) >= desired_weight:       #item[1] is the match weight for this row.  #This row has a weight greater than or equal to the weight that the user wants to "jump to" in the list. So set this row as the "Start Row" for viewing a block of 30 records on screen.
                         new_start_row = i
                         break
                 elif self.sort_asc_or_desc.lower().strip() == "desc":            #List is currently sorted ASCENDING
                     if float(str(item[1])) <= desired_weight:       #item[1] is the match weight for this row.  #This row has a weight greater than or equal to the weight that the user wants to "jump to" in the list. So set this row as the "Start Row" for viewing a block of 30 records on screen.
-                        if self.debug: self.logobject.logit("\nFound a weight lower than the jump-to weight: %s. New start row will be %s" % (float(str(item[1])), i), True, True, True )
+                        if self.debug: self.logobject.logit("\nFound a weight lower than the target weight: %s. New start row will be %s" % (float(str(item[1])), i), True, True, True )
                         new_start_row = i
                         break
                 i += 1 
@@ -343,31 +459,34 @@ class MatchReview_Model():
             else: 
                 self.view_object.start_row = i - 1
                 if self.debug: self.logobject.logit("Jump-to-weight not found in list. Defaulting to: %s. Check self.view_object.start_row: %s" % (i, self.view_object.start_row), True, True, True )
-            self.view_object.load_or_reload_grid()
+            self.view_object.repopulate_grid()
+            self.enable_disable_buttons()
         except:
             if self.debug:
                 raise
     
-    def catch_threshold_change(self, val1=None, val2=None, val3=None, val4=None):
-        if self.debug: self.logobject.logit("\n\nTHRESHOLD VAR CHANGED - parms are %s %s %s" % (val1, val2, val3), True, True, True )
-        self.handle_threshold_change()
+    def catch_jump_to_weight_change(self, val1=None, val2=None, val3=None, val4=None):
+        print("\n\nJUMP-TO-WEIGHT VAR CHANGED - parms are %s %s %s" % (val1, val2, val3) )
+        self.handle_jump_to_weight()
 
-    def handle_threshold_change(self, parm=None):    #, parm=None
+    def catch_threshold_change(self, val1=None, val2=None, val3=None, val4=None):
+        print("\n\nTHRESHOLD VAR CHANGED - parms are %s %s %s" % (val1, val2, val3) )
+        self.spinhandler()
+
+    def spinhandler(self, parm=None):    #, parm=None
         '''Read the spinner value and check/un-check each ACCEPTANCE checkbox based on whether the associated MATCH WEIGHT is greater than or less than the spinner's user-entered value.
         PARM is a multi-valued parameter submitted by the TKINTER spinner object thru its BIND event handlers. 
         But we're more interested in the value of the STRINGVAR that was designated to hold the value of the Spinner widget. That Stringvar's value is retrieved via self.accept_threshold.get()'''
+        #self.logobject.logit("\n Spinner stringvar: %s, stringvar value: %s, parm: %s, widget: %s" % (self.accept_threshold, self.accept_threshold.get(), parm, parm.widget), True, True, True )
+        if self.debug: self.logobject.logit("\n Spinner stringvar: %s, stringvar value: %s" % (self.accept_threshold, self.accept_threshold.get()), True, True, True )
         if not self.controls or not self.meta_values:
             return
-        spinnerval = 8
-        if self.view_object.user_buttons_loaded:
-            if self.debug: self.logobject.logit("\n Spinner stringvar: %s, stringvar value: %s" % (self.accept_threshold, self.accept_threshold.get()), True, True, True )
-        typ = str(type(self.accept_threshold)).lower().replace("<class '", "").replace("'>", "")
-        if self.debug: self.logobject.logit("\nType of accept_threshold: %s" % (typ), True, True, True )
-        if typ.find("stringvar") > -1:
-            if self.accept_threshold.get():
-                spinnerval = float(self.accept_threshold.get())
+        spinnerval = 0
+        if self.accept_threshold.get():
+            spinnerval = float(self.accept_threshold.get())
         i = 0
         for control in self.controls:
+            #if self.debug: self.logobject.logit("Is %s greater than %s? %s" % (item[1], spinnerval,  (float(item[1]) >= spinnerval) ), True, True, True )
             typ = str(control.control_type).lower().strip()
             if typ == "checkbox":
                 #First, un-check every checkbox regardless of its weight. This is because at the end of the list rows that are no longer populated do not hit the meta_values loop below, and might leave checked boxes on now-empty rows.
@@ -377,13 +496,12 @@ class MatchReview_Model():
                 for item in self.meta_values:
                     #if self.debug: self.logobject.logit("Seeking meta_rowid %s, found %s" % (meta_rowid, item[6] ), True, True, True )
                     if item[6] == meta_rowid:                   #Found the META_VALUES row corresponding to this control's META_ROWID
-                        if self.debug: self.logobject.logit("Is %s greater than %s? %s" % (item[1], spinnerval,  (float(item[1]) >= spinnerval) ), True, True, True )
                         if float(item[1]) >= spinnerval:        #item[1] is "weight" - the match probability as estimated by BigMatch. The user wants to acccept every row with a weight greater than N.
-                            if self.debug: self.logobject.logit("SELECTing the checkbox with meta_rowid %s, row_index %s, gridrow %s, weight %s" % (control.meta_rowid, control.row_index, control.gridrow, item[1] ), True, True, True )
+                            #if self.debug: self.logobject.logit("SELECTing the checkbox with meta_rowid %s, row_index %s, gridrow %s, weight %s" % (control.meta_rowid, control.row_index, control.gridrow, item[1] ), True, True, True )
                             control.object.select()             #Check the checkbutton object
                             break
                         else:                                               #This item's WEIGHT (item[1]) falls below the user-entered cutoff (set by the spinner) for ACCEPTANCE.
-                            if self.debug: print("DE-Selecting the checkbox with meta_rowid %s" % (control.meta_rowid), True, True, True )
+                            #if self.debug: print("DE-Selecting the checkbox with meta_rowid %s" % (control.meta_rowid), True, True, True )
                             control.object.deselect()           #UN-Check the checkbutton object
                             break
             i += 1
@@ -436,18 +554,24 @@ class MatchReview_Model():
             if self.debug: 
                 raise
         #Display a temporary message notifying the user that their file was created.
-        self.view_object.update_message_region("File has been saved")
+        self.update_message_region("File has been saved")
 
     def change_sort_column(self, var):
         print("\n in change_sort_column(), var='%s'" % (str(var.get()) ) )
         self.sort_column = str(var.get()).lower().strip().replace(" ", "_")      #"weight"
         self.sort_list()
 
-    #********************************************************************************
+    def update_message_region(self, text='', clear_after_ms=5000, **kw):
+        self.message_region.configure(text=text)
+        self.message_region.after(clear_after_ms, self.clear_message_region)
+		
+    def clear_message_region(self):
+        self.message_region.configure(text="")
+
     def update_filepath(self, file_name_with_path='', callback_string='', alias=''):
         '''IMPORTANT: ALL FilePath objects created by this class will expect Function "update_file_path" to exist! FilePath objects alert their masters when a filepath is selected in an open-file dialog.'''
         #self.logobject.logit("Master MatchReview_Model object has gotten the alert: filename is %s and callback_string is '%s'" % (file_name_with_path, callback_string), True, True )
-        self.logobject.logit("Master MatchReview_Model object has gotten the alert: filename is %s and callback_string is '%s'" % (file_name_with_path, callback_string), True, True, True)
+        print("Master MatchReview_Model object has gotten the alert: filename is %s and callback_string is '%s'" % (file_name_with_path, callback_string))
         if callback_string.lower().strip()[:4] == "load" or callback_string.lower().strip()[:4] == "open":
             #hold_old_file = self.matchreview_file_selected_by_user
             self.matchreview_file_selected_by_user = file_name_with_path           #File selected to be reviewed -- BUT user can choose to combine this with others from the same batch
@@ -461,27 +585,25 @@ class MatchReview_Model():
             self.logobject.logit("\n Matchreview_file_to_save_to is being set to: %s" % (self.matchreview_file_to_save_to), True, True, True )
             #IMPORTANT: if a file had already been chosen prior to this file, AND the newly-selected file is DIFFERENT form the currently loaded file, then DELETE THE META_VALUES LIST that is currently loaded with the previous data!
             if self.matchreview_file_to_load_from:            #and self.matchreview_file_to_save_to:
-                if self.view_object:
-                    if self.view_object.grid_initialized:
-                        self.load_and_render_match_result_file(self.matchreview_file_to_load_from)					
-                    else:
-                        self.display_views()
-                else:
-                    self.display_views()
+                self.logobject.logit("\nClearing out arrays and display grid", True, True, True)
+                self.clear_meta_values()
+                #self.clear_controls()
+                #self.view_object.grid_initialized = False    #This causes the entire grid to be re-drawn
+                self.view_object.clear_grid()                 #
+                self.display_views()                          #Refresh the view when the user selects (loads) a new file.
+                #self.load_single_file()                      #Refresh the view when the user selects (loads) a new file.
             else:                                             #No file was specified (user might have cleared out a previously selected file name) 
-                if self.view_object:
+                if self.view_object is not None:
                     self.view_object.clear_grid()             #Remove all existing values from the grid
         elif callback_string.lower().strip()[:4] == "save":   #This is a file SAVE AS, not a FILE OPEN
             self.matchreview_file_to_save_to = file_name_with_path
 
         self.update_controller_dirpaths(file_name_with_path)  #Let the BigMatchController know that this path is a regular user location (for future file-open dialogs to start from)
-        if self.view_object.user_buttons_loaded:
-            self.view_object.enable_disable_buttons()
+        self.enable_disable_buttons()
             
         if self.error_message is not None:
             self.handle_error()
             return
-        #********************************************************************************
 
     def get_default_saveto_filename(self):
         returnval = ""
@@ -661,6 +783,73 @@ class MatchReview_Model():
             self.controller.dir_last_opened = head                       #The controller tracks last folders opened for this type, so that when the user is again prompted to open the same type of file, we can set this as the initial dir.
         print("\n Controller-saved paths-- LastDir: %s" % (self.controller.dir_last_opened) )
 
+    def enable_disable_buttons(self):
+        #Buttons related to viewing result files:
+        print("\n In enable_disable_buttons, MatchReviewFile is %s" % (self.matchreview_file_to_load_from) )
+        if self.matchreview_file_to_load_from: 
+            self.enable_display()
+        else:
+            self.disable_display()
+        
+        #Buttons related to saving match choices:		
+        if self.matchreview_file_to_save_to:
+            self.enable_save()
+        else:
+            self.disable_save()
+        
+    def enable_display(self):
+        if str(self.viewing_one_or_all_files).lower() == "one": 
+            #if self.allow_view_combined_files:
+            #    self.btnDisplayOneFile.configure(state=DISABLED)       #Disable this button if the list is already populated with the user-selected file only
+            #    self.btnDisplayAllFiles.configure(state=NORMAL)        #Enable this button if the list is currently showing the user-selected file only.
+            pass
+				
+        elif str(self.viewing_one_or_all_files).lower() == "all":
+            #if self.allow_view_combined_files:
+            #    self.btnDisplayOneFile.configure(state=NORMAL)         #Enable this button if the list is currently showing the user-selected file only
+            #    self.btnDisplayAllFiles.configure(state=DISABLED)	   #Disable this button if the list is already populated with the COMBINED files
+            pass
+        else:
+            if self.allow_view_combined_files:
+                #self.btnDisplayOneFile.configure(state=NORMAL)         #Allow the user to choose either single or combined
+                #self.btnDisplayAllFiles.configure(state=NORMAL)        #Allow the user to choose either single or combined
+                pass
+
+        if self.viewing_one_or_all_files is not None:                  #All of the following buttons require that the user has already loaded EITHER a single file or a combined file.
+            if self.view_object is None:
+                self.btnNextPage.configure(state=DISABLED)
+                self.btnPrevPage.configure(state=DISABLED)
+            else:
+                if (self.view_object.start_row + self.view_object.rows_to_display) <= len(self.meta_values):
+                    self.btnNextPage.configure(state=NORMAL)
+                else:
+                    self.btnNextPage.configure(state=DISABLED)
+                if self.view_object.start_row > 0:
+                    self.btnPrevPage.configure(state=NORMAL)
+                else:
+                    self.btnPrevPage.configure(state=DISABLED)
+            if str(self.sort_asc_or_desc).upper().strip()[:4] == "DESC":
+                self.btnSortDesc.configure(state=DISABLED)                #Disable this button if the list is already sorted Descending
+                self.btnSortAsc.configure(state=NORMAL)                   #Enable this button if the list is currently sorted Descending
+            if str(self.sort_asc_or_desc).upper().strip()[:3] == "ASC":
+                self.btnSortAsc.configure(state=DISABLED)                 #Disable this button if the list is already sorted Ascending
+                self.btnSortDesc.configure(state=NORMAL)                  #Enable this button if the list is currenty sorted Ascending
+
+    def disable_display(self):
+        if self.allow_view_combined_files:
+            pass
+            #self.btnDisplayOneFile.configure(state=DISABLED)
+            #self.btnDisplayAllFiles.configure(state=DISABLED)	
+        self.btnNextPage.configure(state=DISABLED)
+        self.btnSortDesc.configure(state=DISABLED)            #Disable this button if the list is already sorted Descending
+        self.btnSortAsc.configure(state=DISABLED)            #Disable this button if the list is already sorted Ascending
+
+    def enable_save(self):
+        self.btnSaveToDictFile.configure(state=NORMAL)       #Do not enable this button unless the user has selected a MatchResults file to save as
+
+    def disable_save(self):
+        self.btnSaveToDictFile.configure(state=DISABLED)       #Do not enable this button unless the user has selected a MatchResults file to save as
+
     #*****************************************************************************************************************************************
     def instantiate_view_object(self, container, index):
         #Instantiate table-formatted match VIEWS here.
@@ -677,41 +866,43 @@ class MatchReview_Model():
             self.handle_error()
             return
         #If the view object has not yet been instantiated, do that now:
-        self.logobject.logit("\nTop of display_view() -- self.view_object has type %s, length of meta_values=%s, grid_initialized=%s" % (type(self.view_object), len(self.meta_values), self.view_object.grid_initialized  ), True, True, True )
-        if not self.view_object: 
+        new_view_object = None
+        if self.view_object is None: 
             self.view_object = self.instantiate_view_object(container, index)
-        if self.view_object:
-            if not self.view_object.grid_initialized:       #The grid has already been populated at least once, so now we follow a very different process to re-load it with new data.
-                #The grid view has not yet been initialized (loaded with data cells) -- INITIALIZE IT NOW.
-                self.logobject.logit("\nIn display_view(), calling new_view_object.initUI().", True, True, True)
-                self.view_object.initUI(**kw)   #DISPLAY THE FRAME OBJECT ON SCREEN
-            if not self.view_object.user_buttons_loaded:
-                #self.view_object.display_user_buttons()
-                if self.allow_view_combined_files:
-                    self.view_object.display_advanced_buttons()
-            if self.matchreview_file_to_load_from:              
-                #***********************************************************************************************
-                #POPULATE AND DISPLAY THE GRID VIEW WITH ROWS READ IN FROM THE SELECTED BIGMATCH RESULT FILE
-                self.load_and_render_match_result_file(self.matchreview_file_to_load_from)
-                #***********************************************************************************************
+        if self.view_object.grid_initialized:       #The grid has already been populated at least once, so now we follow a very different process to re-load it with new data.
+            self.view_object.repopulate_grid()
+        else:      #The grid view has not yet been initialized (loaded with data cells) -- INITIALIZE IT NOW.
+            print("\n In MatchReview_Model.display_view(), calling new_view_object.initUI().")
+            self.view_object.initUI(**kw)   #DISPLAY THE FRAME OBJECT ON SCREEN
+
         if self.error_message is not None:
             self.handle_error()
             return
-        return self.view_object
-    #**********************************************************************************************************
+        return new_view_object
 
     def display_views(self, container=None, howmany_passes=None):
-        '''Display_Views() normally serves to display multiple views, such as one view object per blocking pass. 
-        But in the MatchReview module, it is not currently used, but remains in the code so that it can be invoked if needed in the future.'''
+        #Instantiate table-formatted match VIEWS here.  
+        #Note that the currently instantiated MODEL object serves as model for ALL of the views, so attributes that should be different for each iteration cannot be read form the MODEL.
         if container is None:
             container = self.controller.bigcanvas.bigframe
         if howmany_passes is None:
             howmany_passes = self.howmany_passes
-        self.logobject.logit("\nTop of MatchReview_Model.display_views() -- matchreview_file_to_load_from: %s, length of meta_values=%s" % (self.matchreview_file_to_load_from, len(self.meta_values)), True, True, True )
+        print("\n Top of MatchReview_Model.display_views() -- matchreview_file_to_load_from: %s, length of meta_values=%s" % (self.matchreview_file_to_load_from, len(self.meta_values)) )
+        #DISPLAY THE SPECIFIED NUMBER OF BLOCKING PASS RESULTS (but only if the Data Dict files have been specified):
         if self.matchreview_file_to_load_from:    #and self.matchreview_file_to_save_to:
+            #Function "split_result_files" extracts the contents of the Match Result file and stores it in arrays. The arrays are them passed to the VIEW object to be displayed.
+            print("\n" + "In MatchResult.display_view(), about to run split_result_file() with '" + str(self.matchreview_file_to_load_from) + "'" )
+            #***********************************************************************
+            self.split_result_file(self.matchreview_file_to_load_from)              #Read the match results file into array 
+            #***********************************************************************
+            if len(self.meta_values) == 0:
+                self.error_message = "Meta values array is blank, procedure cancelled."
+            if self.error_message is not None:
+                self.handle_error()
+                return
             for i in range(0, howmany_passes):
                 bgcolor = self.bgcolors[i]    #bgcolor = "#FDFFDF"   
-                self.logobject.logit("\n In MatchView_Model.display_views(), calling display_view() for iteration #%s. BgColor=%s" % (i, bgcolor), True, True, True )
+                print("\n In MatchView_Model.display_views(), calling display_view() for iteration #" + str(i) +". BgColor=" + bgcolor)
                 #**********************************************************************************************************
                 #DISPLAY THE MATCH REVIEW SCREEN HERE:
                 self.display_view(container, i, width=self.frame_width, background=bgcolor, borderwidth=2, padx=3, pady=3)
@@ -722,31 +913,9 @@ class MatchReview_Model():
             #User has not yet selected Data Dictionaries, which are required for displaying Blocking Pass entry screens.
             print("\n About to display the OpenFile dialogs")
             self.display_openfile_dialogs(container)
-
-    #***************************************************************************
-    def load_and_render_match_result_file(self, matchreview_file=None ):
-        '''load_and_render_match_result_file() is called whenever a result file is selected by the user. 
-        Therefore it is separate from the View Object instantiation, since the user may open any number result files sequentially, each displacing the previous one in the grid view.'''
-        self.logobject.logit("\nTop of load_and_render_match_result_file(), matchreview_file='%s'" % (matchreview_file),  True, True, True)
-        if not matchreview_file:
-            self.error_message = "No result file was specified"
-            return
-        #Function "split_result_files" extracts the contents of the Match Result file and stores it in arrays. The arrays are them passed to the VIEW object to be displayed.
-        #*****************************************		
-        self.split_result_file(matchreview_file)                 #Read the Bigmatch result file into a list in memory 
-        #*****************************************		
-        if len(self.meta_values) == 0:
-            self.error_message = "Meta values array is blank, procedure cancelled."
-        if self.error_message is not None:
-            self.handle_error()
-            return
-        if self.view_object:
-            if self.view_object.grid_initialized:
-                self.view_object.start_row = 0              #Go to the Top of the record list
-                #Display the file contents in a grid:
-                #**************************************
-                self.view_object.load_or_reload_grid()
-                #***************************************************************************
+            self.display_user_buttons(container)
+            if self.allow_view_combined_files:
+                self.display_advanced_buttons(container)
 
     def scroll_page(self):
         if self.error_message is not None:
@@ -757,7 +926,9 @@ class MatchReview_Model():
             self.view_object.start_row = self.view_object.start_row + self.view_object.rows_to_display
             if self.view_object.start_row >= len(self.meta_values):
                 self.view_object.start_row = (len(self.meta_values) +1 - self.view_object.rows_to_display)
-            self.view_object.load_or_reload_grid()
+            self.view_object.repopulate_grid()
+        #Refresh the state of sort buttons:
+        self.enable_disable_buttons()		
 		
     def scroll_backwards(self):
         if self.error_message is not None:
@@ -768,7 +939,9 @@ class MatchReview_Model():
             self.view_object.start_row = self.view_object.start_row - self.view_object.rows_to_display
             if self.view_object.start_row < 0:
                 self.view_object.start_row = 0
-            self.view_object.load_or_reload_grid()
+            self.view_object.repopulate_grid()
+        #Refresh the state of sort buttons:
+        self.enable_disable_buttons()		
 		
     def debug_display_arrays(self):
         i = 0
@@ -920,7 +1093,6 @@ class MatchReview_View(Frame):
     kw_chkbx = {}           #Configuration for checkboxes
     resultrow_frames_initialized = None
     jump_to_weight = None
-    user_buttons_loaded = None
 
     def __init__(self, container, model=None, pass_index=None, show_view=None):
         Frame.__init__(self, container)
@@ -961,12 +1133,8 @@ class MatchReview_View(Frame):
         for i in range(0, len(self.model.meta_values)):
             if i < self.rows_to_display:
                 self.rowconfigure(0, pad=2)
-        #Display buttons for the user to take actions
-        self.display_user_buttons()
-        if self.model.allow_view_combined_files:
-            self.display_advanced_buttons()
         #Frame Title:
-        self.model.logobject.logit("\n In matchreview_view.initUI: About to display main MatchReview frame title: '%s'" % (self.model.title), True, True, True)
+        self.model.logobject.logit("\n In matchreview_view.initUI: About to display main MatchReview frame title", True, True, True)
         widgetspot = self.get_widgetstack_counter()
         self.label_object = Label(self, text=self.model.title)    #+ " #" + str(self.pass_index +1))
         self.label_object.grid(row=widgetspot, column=0, columnspan=7, sticky=EW)
@@ -982,259 +1150,149 @@ class MatchReview_View(Frame):
         lbl = self.create_label("Blocking field values", vert_position, 4, **lbl_kw)
         lbl = self.create_label("Record file fields", vert_position, 5, **lbl_kw)
         lbl = self.create_label("Memory file fields", vert_position, 6, **lbl_kw)
-
         #***********************************************************************
         #Display the first page of results:  
-        self.load_or_reload_grid(0)		
+        self.display_review_page(0)
         #***********************************************************************
         #for control in self.model.controls:      #DEBUG CHECK THE CONTROLS LIST
         #    if self.debug: self.model.logobject.logit("Control-- Gridrow: %s Row: %s OR %s, Col: %s, meta_rowid: %s, control_type %s, ref_name=%s, Current value: %s, " % (control.gridrow, control.row_index, control.control_index, control.col, control.meta_rowid, control.control_type, control.ref_name, control.value_object.get() ), True, True, True )
-
-    def display_user_buttons(self):
-        '''Function display_user_buttons shows one or more buttons near top of page for common user functions, so the user doesn't need to constantly hit the system menus. '''
-        self.button_frame = Frame(self)
-        widgetspot = self.get_widgetstack_counter()
-        self.button_frame.grid(row=widgetspot, column=0, columnspan=8, sticky=EW)
-        self.button_frame.configure(background=self.bgcolor, padx=4, pady=1, borderwidth=2)
-        #We need a second button frame for this module
-        self.button_frame2 = Frame(self)
-        widgetspot = self.get_widgetstack_counter()
-        self.button_frame2.grid(row=widgetspot, column=0, columnspan=8, sticky=EW)
-        self.button_frame2.configure(background=self.bgcolor, padx=4, pady=1, borderwidth=2)
-        #self.btnDisplayAllFiles = Button(self.button_frame, text="View all files from this batch", width=24, command=self.load_combined_files)
-        #self.btnDisplayAllFiles.grid(row=0, column=1, sticky=W)
-        #self.btnDisplayAllFiles.configure(state=DISABLED)       #Do not enable this button unless the user has selected MatchReview files
 		
-        self.btnNextPage = Button(self.button_frame, text="Next", width=12, command=self.model.scroll_page)
-        self.btnNextPage.grid(row=0, column=0, sticky=W)
-        self.btnNextPage.configure(state=DISABLED, padx=4, pady=1)
-		
-        self.btnPrevPage = Button(self.button_frame, text="Back", width=12, command=self.model.scroll_backwards)
-        self.btnPrevPage.grid(row=0, column=1, sticky=W)
-        self.btnPrevPage.configure(state=DISABLED, padx=4, pady=1)
-        
-        self.btnSortDesc = Button(self.button_frame, text="Sort Descending", width=16, command=self.model.sort_list_descending)
-        self.btnSortDesc.grid(row=0, column=2, sticky=W)
-        self.btnSortDesc.configure(state=DISABLED, padx=4, pady=1)            #Disable this button if the list is already sorted Descending
-		
-        self.btnSortAsc = Button(self.button_frame, text="Sort Ascending", width=16, command=self.model.sort_list_ascending)
-        self.btnSortAsc.grid(row=0, column=3, sticky=W)
-        self.btnSortAsc.configure(state=DISABLED, padx=4, pady=1)            #Disable this button if the list is already sorted Ascending
-        
-        #***********************************************************************
-        #2nd user_buttons frame to hold weight-based manipulations
-        #User can jump to rows with a specific weight here.
-        self.lblJumpToWeight = Label(self.button_frame2, text="Jump to weight: ")
-        self.lblJumpToWeight.grid(row=0, column=0, sticky=W) 
-        self.lblJumpToWeight.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
-
-        self.model.jump_to_weight = StringVar(self.button_frame2)
-        self.model.jump_to_weight.set(8)                      #If no rows are found with this weight, the next highest weight found will be used. If none found, then no action.
-        self.model.jump_to_weight.trace("w", self.model.catch_jump_to_weight_change)
-        txtJumpTo = Entry(self.button_frame2)
-        txtJumpTo.grid(row=0, column=1, sticky=W)
-        txtJumpTo.config(textvariable=self.model.jump_to_weight, background=self.bgcolor, width=5)
-        txtJumpTo.bind(sequence="<FocusOut>", func=self.model.handle_jump_to_weight)
-        txtJumpTo.bind(sequence="<Return>", func=self.model.handle_jump_to_weight)
-        txtJumpTo.bind(sequence="<ButtonRelease-1>", func=self.model.handle_jump_to_weight)
-        
-        #User can set the threshold for ACCEPTANCE here.
-        self.lblAcceptAbove = Label(self.button_frame2, text="Accept above: ")
-        self.lblAcceptAbove.grid(row=0, column=2, sticky=W) 
-        self.lblAcceptAbove.configure(background=self.bgcolor, font=("Arial", 10, "normal"), borderwidth=0, width=15, anchor=E, padx=4, pady=1)
-
-        self.model.accept_threshold = StringVar(self.button_frame2)
-        self.model.accept_threshold.set(10)
-        self.model.accept_threshold.trace("w", self.model.catch_threshold_change)
-        spn = Entry(self.button_frame2)
-        spn.grid(row=0, column=3, sticky=W)
-        spn.config(textvariable=self.model.accept_threshold, background=self.bgcolor, width=5)
-        spn.bind(sequence="<FocusOut>", func=self.model.handle_threshold_change)
-        spn.bind(sequence="<Return>", func=self.model.handle_threshold_change)
-        spn.bind(sequence="<ButtonRelease-1>", func=self.model.handle_threshold_change)
-        
-        self.btnSaveToDictFile = Button(self.button_frame2, text="Write accepted pairs to file", width=20, command=self.model.write_accepted_pairs)
-        self.btnSaveToDictFile.grid(row=0, column=4, sticky=W)
-        self.btnSaveToDictFile.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected a MatchResults file to save as
-
-        #Create a message region to display notifications to the user
-        self.message_region = Message(self.button_frame2, text="")              
-        self.message_region.grid(row=0, column=5, sticky=E)
-        kw = {"anchor":E, "width":800, "foreground":"dark green", "background":self.bgcolor, "borderwidth":1, "font":("Arial", 12, "bold"), "padx":8, "pady":3 }  
-        self.message_region.configure(**kw)
-        self.user_buttons_loaded = True
-
-    def display_advanced_buttons(self):
-        '''Function display_advanced_buttons shows advanced features IF the user is authorized and explicitly chooses to open this panel.. '''
-        self.advanced_frame = Frame(self)
-        widgetspot = self.get_widgetstack_counter()
-        self.advanced_frame.grid(row=widgetspot, column=0,  columnspan=8, sticky=EW)
-        self.advanced_frame.configure(background=self.bgcolor, padx=4, pady=1, borderwidth=2)
-		
-        #self.btnDisplayOneFile = Button(self.advanced_frame, text="View the selected file", width=24, command=self.load_single_file)
-        #self.btnDisplayOneFile.grid(row=0, column=0, sticky=W)
-        #self.btnDisplayOneFile.configure(state=DISABLED, padx=4, pady=1)        #Do not enable this button unless the user has selected MatchReview files
-		
-        #self.btnDisplayAllFiles = Button(self.advanced_frame, text="View all files from this batch", width=24, command=self.load_combined_files)
-        #self.btnDisplayAllFiles.grid(row=0, column=1, sticky=W)
-        #self.btnDisplayAllFiles.configure(state=DISABLED, padx=4, pady=1)       #Do not enable this button unless the user has selected MatchReview files
-        if self.model.allow_view_combined_files:
-            self.btnWriteGoodPairs = Button(self.advanced_frame, text="Combine exact and accepted pairs for this batch", width=36, command=self.model.combine_good_pairs_all_passes)
-            self.btnWriteGoodPairs.grid(row=0, column=0, sticky=W)
-            self.btnWriteGoodPairs.configure(state=NORMAL, padx=4, pady=1)       #Do not enable this button unless the user has selected MatchReview files
-
-        #By default the list is sorted by weight. But user could opt for a different sort order.
-        self.lblSortBy = Label(self.advanced_frame, text="Sort on: ")
-        self.lblSortBy.grid(row=0, column=1, sticky=W) 
-        self.lblSortBy.configure(background=self.bgcolor, font=("Arial", 9, "normal"), borderwidth=0, width=7, anchor=E, padx=4, pady=1)
-        var = StringVar(self.advanced_frame)
-        var.set("Blocking Pass+Weight")
-        value_list = ["Blocking Pass+Weight", "Weight"]
-        self.optSortBy = OptionMenu(self.advanced_frame, var, *value_list, command=lambda x:self.model.change_sort_column(var) )
-        self.optSortBy.grid(row=0, column=2, sticky=W)
-        self.optSortBy.config(font=('calibri',(9)), bg='light grey', width=18, padx=4, pady=1)
-        self.optSortBy['menu'].config(background=self.bgcolor, font=("calibri",(11))) 
-
-    def load_or_reload_grid(self, start_row=None):
-        '''load_or_reload_grid() is called whenever the grid is re-drawn with new values.  This happens all the time, because the user displays a small number of rows at a time.
-        This function is also called when the user selects a new Bigmatch result file. 
-        Loading the grid takes two separate operations: (1) creating and/or re-loading the textbox or checkbox controls where weight, blocking pass, etc. are displayed, and
-        (2) creating and/or re-loading the Matching Fields comparison frames. These are more complex, because we need to display each segment (word) in a different color to indicate whether it matches or does not match the corresponding segment in the other file being linked (record file vs. memory file).
-        '''
-        #NOTE: each item in self.meta_values is itself a list of cell values - so each item represents a row of cells.
-        self.model.logobject.logit("\n *********************************************************************", True, True)
+    def display_review_page(self, start_row=None):
+        #*************************************
+        #Display the match values:
+        #*************************************
         if start_row is not None:
             self.start_row = start_row
         if self.start_row is None:
             self.start_row = 0
+        self.model.logobject.logit("\n\no-----o Display_review_page(), start_row=%s" % (self.start_row), True, True )
+        self.row_index = 0				
+        curvalue = 0 
+        data_column_name = rowtype = ""
+        kw_chkbx = self.kw_chkbx
+        kw_txtbox = self.kw_txtbox
         vert_position = self.get_widgetstack_counter()
         self.vert_position_of_1st_gridrow = vert_position
-        self.model.logobject.logit("\n\no-----o load_or_reload_grid), Start_row=%s, EndRow=%s, vert_position=%s" % (self.start_row, int(self.start_row) + int(self.rows_to_display), vert_position), True, True, True )
-        #print("\n ARRAYS before clear:")
-        #self.model.debug_display_arrays()
-        self.clear_grid()    #This must be executed BEFORE the row and column lists are loaded in as class properties, because clear_arrays() deletes these class properties.
-        #print("\n ARRAYS after clear:")
-        #self.model.debug_display_arrays()
-        #self.row_index = 0				
-        ix = countrow = 0                     #index of the current row / count the number of rows displayed
-        data_column_name = rowtype = holdweight = holdpass = ""
+        ix = 0                               #index of the current row
+        countrow = 0                         #count the number of rows displayed
+        holdweight = holdpass = ""
+        bgcolor = "light grey"		
         weight_color = "dark slate blue"
-        bgcolor = "light grey"
-        kw_chkbx = self.kw_chkbx                      #Configuration for checkbuttons
-        kw_txtbox = self.kw_txtbox                    #Configuration for checkboxes
-        kw_matchfldcompare = self.kw_matchfldcompare  #Configuration for Matching Field Comparison frames
-        for item in self.model.meta_values:
-            #self.model.logobject.logit("In load_or_reload_grid, row %s" % (ix), True, True )
-            if ix >= self.start_row and countrow < self.rows_to_display:          #This row of meta_values falls within the start and end row for the chunk we are displaying.
-                ##DO NOT RE-CREATE THE GRID OBJECTS EVERY TIME THE USER SCROLLS OR SORTS! that would create hundreds or thousands of Frame and Entry objects as the user scrolls and sorts iteratively.
-                vert_position = countrow +5            #Column labels are at row 0, blank space at row 1 - so add 3 to the counter to assign vertical position for this grid display row.
+        for item in self.model.meta_values:  #The entire contents of the BigMatch result file is loaded into self.model.meta_values. Display only 30 at a time. 
+            if ix >= self.start_row and countrow < self.rows_to_display:
+                self.meta_rowid = item[6]    #The Row index number of the current row in meta_values
+                if self.debug: self.model.logobject.logit("Row %s is between %s and %s so it will be displayed. Meta_rowid=%s" % (ix, self.start_row, int(self.start_row) + int(self.rows_to_display), self.meta_rowid ), True, True )
+                vert_position = self.get_widgetstack_counter()
                 label_text = ""
-                #Memfile_values and Recfile_values are BOTH passed to the display function, because we need to compare them against each other to determine the colors to be used in displaying the values.
-                self.recfile_values_for_current_row = ""                           
-                self.memfile_values_for_current_row = ""
-                self.meta_rowid = item[6]              #RowId is the 7th item in the list
-                if self.debug: self.model.logobject.logit("Repopulating: Row %s is between %s and %s so it will be displayed. Meta_rowid=%s, bp=%s, weight=%s, recvalues=%s, memvalues=%s" % (ix, self.start_row, ( int(self.start_row) + int(self.rows_to_display) ), self.meta_rowid, str(item[0]), str(item[1]), str(item[2]), str(item[3]) ), True, True, True )
 
-                #Checkbox:
+				#(1) Checkbox to indicate that this field should be accepted as a match:
                 gridcolumn = 0
-                curvalue = 0                           #Un-check the boxes when we re-draw the page
-                if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (chkbx) with row %s, col %s, curvalue %s" % (countrow, gridcolumn, curvalue), True, True, True )
-                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid)
-                if not found: 
-                    if self.debug: self.model.logobject.logit("Checkbox was NOT FOUND by update_control_in_grid(), so it will be created now with curvalue %s" % (curvalue), True, True, True )
-                    control_name = "chkaccept_" + str(self.pass_index) + str(ix)
-                    chk = self.create_checkbox(label_text, vert_position, gridcolumn, curvalue, control_name, **kw_chkbx)
+                curvalue = 0
+                chk = self.create_checkbox("", vert_position, gridcolumn, curvalue, "chkaccept_" + str(ix), **kw_chkbx)
 				
-                #Blocking Pass:
+                #(2) Text box to display the Blocking Pass number that this row was generated by
                 gridcolumn = 1
-                curvalue = str(item[0]).strip()        #Weights and unique IDs
-                self.pass_index = curvalue             #Which blocking pass is this row associated with?
-                #Find the correct element in self.controls where the COL attribute = gridcolumn, and the ROW attribute = row.
-                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (blkps) with row %s, col %s, curvalue %s" % (countrow, gridcolumn, curvalue), True, True, True )
-                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid)
-                if not found: 
-                    if curvalue != holdpass:
-                        if bgcolor == "light grey":
-                            bgcolor = self.bgcolor
-                        else:
-                            bgcolor = "light grey"
-                        holdpass = curvalue
-                    kw_txtbox["background"] = bgcolor
-                    kw_txtbox["width"] = 6
-                    control_name = "blkpass_" + str(self.pass_index) + "_" + str(ix)
-                    txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
-				
-                #Weight:
-                gridcolumn = 2
-                curvalue = str(item[1]).strip()        #Weights and unique IDs
-                if curvalue != holdweight:             #Don't use the alternating weight colors here - get colors from the function instead
-                    holdweight = curvalue
-                #Find the correct element in self.controls where the COL attribute = gridcolumn, and the ROW attribute = row.
-                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (weight) with row %s, col %s, curvalue %s" % (countrow, col, curvalue), True, True, True )
-                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid, weight_color)
-                if not found:
-                    weight_color = self.get_weight_color(curvalue, holdweight)
-                    kw_txtbox["width"] = 6
-                    kw_txtbox["foreground"] = weight_color
-                    control_name = "weight_" + str(self.pass_index) + "_" + str(ix)
-                    txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
-                    kw_txtbox["foreground"] = "black"       #Change it back for the other controls
-                    
-                #Text box to display the row number
-                gridcolumn = 3
-                curvalue = str(ix)                     #Row number within the list (index)
-                #Find the correct element in self.controls where the COL attribute = gridcolumn, and the ROW attribute = row.
-                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (rownm) with row %s, col %s, curvalue %s" % (countrow, gridcolumn, curvalue), True, True, True )
-                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid)
-                if not found:
-                    kw_txtbox["width"] = 3
-                    control_name = "ix_" + str(self.pass_index) + "_" + str(ix)
-                    txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
+                kw_txtbox["width"] = 6
+                curvalue = str(item[0]).strip()       #Weights and unique IDs
+                self.pass_index = curvalue            #Which blocking pass is this row associated with?
+                if curvalue != holdpass:
+                    if bgcolor == "light grey":
+                        bgcolor = self.bgcolor
+                    else:
+                        bgcolor = "light grey"
+                    holdpass = curvalue
+                kw_txtbox["background"] = bgcolor
+                control_name = "blkpass_" + str(self.pass_index) + "_" + str(ix)
+                txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
 
-                #Blocking field values
+                #(3) Text box to display the weight   #and unique IDs
+                gridcolumn = 2
+                kw_txtbox["width"] = 6
+                curvalue = str(item[1]).strip()  
+                curvalue = curvalue.split(" ")[0].strip()     #Just get the weight, discard the unique key values for now
+                control_name = "weight_" + str(self.pass_index) + "_" + str(ix)
+                weight_color = self.get_weight_color(curvalue, holdweight)
+                kw_txtbox["foreground"] = weight_color
+                txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
+                kw_txtbox["foreground"] = "black"
+
+                #(4) Text box to display the row number
+                gridcolumn = 3
+                kw_txtbox["width"] = 3
+                curvalue = str(ix)                    #Row number in the list (index)
+                control_name = "ix_" + str(self.pass_index) + "_" + str(ix)
+                txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
+
+                #(5) Blocking field values
                 gridcolumn = 4
-                curvalue = str(item[7]).strip()        #Blocking Field Values
-                #Find the correct element in self.controls where the COL attribute = gridcolumn, and the ROW attribute = row.
-                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (rownm) with row %s, col %s, curvalue %s" % (countrow, gridcolumn, curvalue), True, True, True )
-                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid)
-                if not found:
-                    kw_txtbox["width"] = 40
-                    control_name = "blkvls_" + str(self.pass_index) + "_" + str(ix)
-                    txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
-                    
-                #*************************************************************************************************************                
-                #Re-render the MATCHING FIELDS comparison frames for the user to review.
-                #Re-display the Matching Field Values frame for the current row of meta_values
+                kw_txtbox["width"] = 40
+                curvalue = str(item[7]).strip()  
+                control_name = "blkvls_" + str(self.pass_index) + "_" + str(ix)
+                txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
+
+                #(5) and (6) Record file and Memory file match values:
+                gridcolumn = 5
+                kw_txtbox["width"] = 70
                 self.recfile_values_for_current_row = str(item[2])        #This item from meta_values is a string of Matching Field values for the Record file
                 self.memfile_values_for_current_row = str(item[3])        #This item from meta_values is a string of Matching Field values for the Memory file
-                if self.debug: self.logobject.logit("Calling populate_resultrow_frame with 'rec', %s" % (self.recfile_values_for_current_row), True, True, True)
-                #******************************************************************************************************************
-                gridcolumn = 5    #4 --> column 5 after adding BlkFldVals in column3
-                mem_or_rec = "rec"
+                kw_matchfldcompare = self.kw_matchfldcompare
+                #******************************************************************************
+                #Display the Record file and Memory file matching field values, side by side - Record values in one frame object, Memory values in a second frame object.
                 kw_matchfldcompare["background"] = "yellow"
-                #self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_matchfldcompare)          #Display the comparison values
-                self.create_or_repopulate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, mem_or_rec, vert_position, gridcolumn, **kw_matchfldcompare)   
-                #******************************************************************************************************************
-                gridcolumn = 6    #5 --> column 6 after adding BlkFldVals in column3
-                mem_or_rec = "mem"
+                #frame = self.create_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_matchfldcompare)             #RECORD FILE matching fields are contained in item[2]
+                self.create_or_repopulate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_matchfldcompare)
                 kw_matchfldcompare["background"] = "white"
-                if self.debug: self.logobject.logit("Calling populate_resultrow_frame with 'mem', %s" % (self.recfile_values_for_current_row), True, True, True)
-                #******************************************************************************************************************
-                #self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_matchfldcompare)          #Display the comparison values
-                self.create_or_repopulate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, mem_or_rec, vert_position, gridcolumn, **kw_matchfldcompare)
-                #******************************************************************************************************************
+                gridcolumn +=1             #Next column in the frame grid
+                #frame = self.create_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_matchfldcompare)             #MEMORY FILE matching fields are contained in item[3]
+                self.create_or_repopulate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_matchfldcompare)
                 countrow += 1
-            ix += 1
-        #Now that the grid has been cleared and re-displayed, we need to update the checkboxes to reflect the user's current weight threshold for acceptance - any weight above the specified threshold triggers a checkbox CHECKED. Below the threshold triggers a checkbox DESELECT.
-        self.model.handle_threshold_change()
-        self.enable_disable_buttons()                       #Refresh the state of sort buttons:
+                ix += 1
+                self.row_index += 1 
+                
+        #Display a temporary message notifying the user that their file was created.
+        self.model.update_message_region("NOTE: exact matches are not displayed here, but have been saved to a file ending with _EXACT.dat")
         self.grid_initialized = True
         self.container.refresh_canvas()
-        #Display a temporary message notifying the user that their file was created.
-        if self.user_buttons_loaded:
-            self.update_message_region("NOTE: exact matches are not displayed here, but have been saved to a file ending with _EXACT.dat")
-        if self.debug: self.model.debug_display_arrays()   #View the Meta_Values and Controls arrays
+        #if self.debug: self.model.debug_display_arrays()   #View the Meta_Values and Controls arrays
 
+    def get_weight_color(self, weight, holdweight=None, schema=None):
+        weight_color = ""
+        if schema is None:
+            schema = "weight_scale"            #"alternating"
+        if schema.lower().strip() == "weight_scale":
+            if float(weight) > 30:
+                weight_color = "red"
+            elif float(weight) > 24:
+                weight_color = "dark orchid"
+            elif float(weight) > 18:
+                weight_color = "dark_violet"
+            elif float(weight) > 12:
+                weight_color = "dark slate blue"
+            elif float(weight) > 10:
+                weight_color = "blue"
+            elif float(weight) > 9:
+                weight_color = "blue"
+            elif float(weight) > 8:
+                weight_color = "dark turquoise"
+            elif float(weight) > 7:
+                weight_color = "medium sea green"
+            elif float(weight) > 6:
+                weight_color = "dark olive green"
+            elif float(weight) > 5:
+                weight_color = "dark goldenrod"
+            elif float(weight) > 4:
+                weight_color = "dark gray"
+            else:
+                weight_color = "black"
+        elif schema.lower().strip() == "alternating":
+            if curvalue != holdweight:
+                if weight_color == "dark green":    
+                    weight_color = "dark slate blue"
+                elif weight_color == "dark slate blue":
+                    weight_color = "dark green"    
+                #print("Old Weight: %s, New Weight: %s, New Color: %s" % (holdweight, curvalue, weight_color) )
+        return weight_color
+    
     def clear_grid(self):
         '''The grid of checkboxes and textboxes is independent of the data values stored in meta_values. 
         Each control is set up with a Tkinter StringVar to hold the current value of that control (text in a textbox, etc.) 
@@ -1286,15 +1344,6 @@ class MatchReview_View(Frame):
                 self.container.refresh_canvas()
                 break
         return found
-
-    def update_message_region(self, text='', clear_after_ms=5000, **kw):
-        if self.user_buttons_loaded:
-            self.message_region.configure(text=text)
-            self.message_region.after(clear_after_ms, self.clear_message_region)
-		
-    def clear_message_region(self):
-        if self.user_buttons_loaded:
-            self.message_region.configure(text="")
 
     def get_widgetstack_counter(self, who_called=''):
         if(self.widgetstack_counter == None):
@@ -1473,45 +1522,157 @@ class MatchReview_View(Frame):
                 break          #We found the specified row, so exit the loop
             frmx +=1
         self.container.refresh_canvas()
+			
+    def repopulate_grid(self, startrow=None):
+        '''repopulate_grid() is called when the frame-grid is re-drawn with new values.  This happens all the time, because the user displays a small number of rows at a time.
+		It would be convenient to simply re-call the function that created the frames in the first place, but that would create hundreds or thousands of frame objects as the user scrolls and sorts iteratively.'''
+        #NOTE: each item in self.meta_values is itself a list of cell values - so each item represents a row of cells.
+        self.model.logobject.logit("\n *********************************************************************", True, True)
+        self.model.logobject.logit("Top of repopulate_grid() - RE-POPULATING self.model.controls LIST FROM self.model.meta_values", True, True)
+        self.model.logobject.logit("StartRow: %s EndRow: %s" % (self.start_row, int(self.start_row) + int(self.rows_to_display) ), True, True )
+        #print("\n ARRAYS before clear:")
+        #self.model.debug_display_arrays()
+        self.clear_grid()    #This must be executed BEFORE the row and column lists are loaded in as class properties, because clear_arrays() deletes these class properties.
+        #print("\n ARRAYS after clear:")
+        #self.model.debug_display_arrays()
 
-    def get_weight_color(self, weight, holdweight=None, schema=None):
-        weight_color = ""
-        if schema is None:
-            schema = "weight_scale"            #"alternating"
-        if schema.lower().strip() == "weight_scale":
-            if float(weight) > 30:
-                weight_color = "red"
-            elif float(weight) > 24:
-                weight_color = "dark orchid"
-            elif float(weight) > 18:
-                weight_color = "dark_violet"
-            elif float(weight) > 12:
-                weight_color = "dark slate blue"
-            elif float(weight) > 10:
-                weight_color = "blue"
-            elif float(weight) > 9:
-                weight_color = "blue"
-            elif float(weight) > 8:
-                weight_color = "dark turquoise"
-            elif float(weight) > 7:
-                weight_color = "medium sea green"
-            elif float(weight) > 6:
-                weight_color = "dark olive green"
-            elif float(weight) > 5:
-                weight_color = "dark goldenrod"
-            elif float(weight) > 4:
-                weight_color = "dark gray"
-            else:
-                weight_color = "black"
-        elif schema.lower().strip() == "alternating":
-            if curvalue != holdweight:
-                if weight_color == "dark green":    
-                    weight_color = "dark slate blue"
-                elif weight_color == "dark slate blue":
-                    weight_color = "dark green"    
-                #print("Old Weight: %s, New Weight: %s, New Color: %s" % (holdweight, curvalue, weight_color) )
-        return weight_color
-    
+        if start_row is not None:
+            self.start_row = start_row
+        if self.start_row is None:
+            self.start_row = 0
+        self.model.logobject.logit("\n\no-----o Display_review_page(), start_row=%s" % (self.start_row), True, True )
+        self.row_index = 0				
+        curvalue = 0 
+        data_column_name = rowtype = ""
+        kw_chkbx = self.kw_chkbx
+        kw_txtbox = self.kw_txtbox
+        vert_position = self.get_widgetstack_counter()
+        self.vert_position_of_1st_gridrow = vert_position
+        ix = 0                               #index of the current row
+        countrow = 0                         #count the number of rows displayed
+        holdweight = holdpass = ""
+        bgcolor = "light grey"		
+        weight_color = "dark slate blue"
+
+
+
+
+        ix = 0                              #index of the current row
+        countrow = 0                        #count the number of rows displayed
+        data_column_name = rowtype = holdweight = holdpass = ""
+        weight_color = "dark slate blue"
+        bgcolor = "light grey"
+        kw_chkbx = self.kw_chkbx                      #Configuration for checkbuttons
+        kw_txtbox = self.kw_txtbox                    #Configuration for checkboxes
+        kw_matchfldcompare = self.kw_matchfldcompare  #Configuration for Matching Field Comparison frames
+        print("\nCheckbox Config kw: %s" % (kw_chkbx) )
+        for item in self.model.meta_values:
+            #self.model.logobject.logit("In Repopulate, row %s" % (ix), True, True )
+            if ix >= self.start_row and countrow < self.rows_to_display:          #This row of meta_values falls within the start and end row for the chunk we are displaying.
+                ##DO NOT RE-CREATE THE GRID OBJECTS EVERY TIME THE USER SCROLLS OR SORTS! that would create hundreds or thousands of Frame and Entry objects as the user scrolls and sorts iteratively.
+                vert_position = countrow +3            #Column labels are at row 0, blank space at row 1 - so add 3 to the counter to assign vertical position for this grid display row.
+                label_text = ""
+                #Memfile_values and Recfile_values are BOTH passed to the display function, because we need to compare them against each other to determine the colors to be used in displaying the values.
+                self.recfile_values_for_current_row = ""                           
+                self.memfile_values_for_current_row = ""
+                self.meta_rowid = item[6]              #RowId is the 7th item in the list
+                if self.debug: self.model.logobject.logit("Repopulating: Row %s is between %s and %s so it will be displayed. Meta_rowid=%s, bp=%s, weight=%s, recvalues=%s, memvalues=%s" % (ix, self.start_row, ( int(self.start_row) + int(self.rows_to_display) ), self.meta_rowid, str(item[0]), str(item[1]), str(item[2]), str(item[3]) ), True, True, True )
+
+                #Checkbox:
+                gridcolumn = 0
+                curvalue = 0                           #Un-check the boxes when we re-draw the page
+                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (chkbx) with row %s, col %s, curvalue %s" % (countrow, col, curvalue), True, True, True )
+                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid)
+                if not found: 
+                    chk = self.create_checkbox(label_text, vert_position, gridcolumn, curvalue, "chkaccept_" + str(self.pass_index) + str(ix), **kw_chkbx)
+				
+                #Blocking Pass:
+                gridcolumn = 1
+                curvalue = str(item[0]).strip()        #Weights and unique IDs
+                self.pass_index = curvalue             #Which blocking pass is this row associated with?
+                if curvalue != holdpass:
+                    if bgcolor == "light grey":
+                        bgcolor = self.bgcolor
+                    else:
+                        bgcolor = "light grey"
+                    holdpass = curvalue
+                kw_txtbox["background"] = bgcolor
+                #Find the correct element in self.controls where the COL attribute = gridcolumn, and the ROW attribute = row.
+                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (blkps) with row %s, col %s, curvalue %s" % (countrow, gridcolumn, curvalue), True, True, True )
+                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid)
+                if not found: 
+                    kw_txtbox["width"] = 6
+                    control_name = "blkpass_" + str(self.pass_index) + "_" + str(ix)
+                    txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
+				
+                #Weight:
+                gridcolumn = 2
+                curvalue = str(item[1]).strip()        #Weights and unique IDs
+                if curvalue != holdweight:             #Don't use the alternating weight colors here - get colors from the function instead
+                    holdweight = curvalue
+                weight_color = self.get_weight_color(curvalue, holdweight)
+                #Find the correct element in self.controls where the COL attribute = gridcolumn, and the ROW attribute = row.
+                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (weight) with row %s, col %s, curvalue %s" % (countrow, col, curvalue), True, True, True )
+                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid, weight_color)
+                if not found:
+                    weight_color = self.get_weight_color(curvalue, holdweight)
+                    kw_txtbox["width"] = 6
+                    kw_txtbox["foreground"] = weight_color
+                    control_name = "weight_" + str(self.pass_index) + "_" + str(ix)
+                    txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
+                    kw_txtbox["foreground"] = "black"
+                    
+                #Text box to display the row number
+                gridcolumn = 3
+                curvalue = str(ix)                     #Row number within the list (index)
+                #Find the correct element in self.controls where the COL attribute = gridcolumn, and the ROW attribute = row.
+                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (rownm) with row %s, col %s, curvalue %s" % (countrow, gridcolumn, curvalue), True, True, True )
+                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid)
+                if not found:
+                    kw_txtbox["width"] = 3
+                    control_name = "ix_" + str(self.pass_index) + "_" + str(ix)
+                    txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
+
+                #Blocking field values
+                gridcolumn = 4
+                curvalue = str(item[7]).strip()        #Blocking Field Values
+                #Find the correct element in self.controls where the COL attribute = gridcolumn, and the ROW attribute = row.
+                #if self.debug: self.model.logobject.logit("Calling Update_control_in_grid() (rownm) with row %s, col %s, curvalue %s" % (countrow, gridcolumn, curvalue), True, True, True )
+                found = self.update_control_in_grid(countrow, gridcolumn, curvalue, self.meta_rowid)
+                if not found:
+                    kw_txtbox["width"] = 40
+                    control_name = "blkvls_" + str(self.pass_index) + "_" + str(ix)
+                    txt = self.create_textbox(label_text, vert_position, gridcolumn, curvalue, control_name, data_column_name, rowtype, **kw_txtbox)
+                    
+                #*************************************************************************************************************                
+                #Re-render the MATCHING FIELDS comparison frames for the user to review.
+                #Re-display the Matching Field Values frame for the current row of meta_values
+                self.recfile_values_for_current_row = str(item[2])        #This item from meta_values is a string of Matching Field values for the Record file
+                self.memfile_values_for_current_row = str(item[3])        #This item from meta_values is a string of Matching Field values for the Memory file
+                if self.debug: self.logobject.logit("Calling populate_resultrow_frame with 'rec', %s" % (self.recfile_values_for_current_row), True, True, True)
+                #******************************************************************************************************************
+                gridcolumn = 5    #4 --> column 5 after adding BlkFldVals in column3
+                mem_or_rec = "rec"
+                kw_matchfldcompare["background"] = "yellow"
+                #self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "rec", vert_position, gridcolumn, **kw_matchfldcompare)          #Display the comparison values
+                self.create_or_repopulate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, mem_or_rec, vert_position, gridcolumn, **kw_matchfldcompare)   
+                #******************************************************************************************************************
+                gridcolumn = 6    #5 --> column 6 after adding BlkFldVals in column3
+                mem_or_rec = "mem"
+                kw_matchfldcompare["background"] = "white"
+                if self.debug: self.logobject.logit("Calling populate_resultrow_frame with 'mem', %s" % (self.recfile_values_for_current_row), True, True, True)
+                #******************************************************************************************************************
+                #self.populate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, "mem", vert_position, gridcolumn, **kw_matchfldcompare)          #Display the comparison values
+                self.create_or_repopulate_resultrow_frame(self.recfile_values_for_current_row, self.memfile_values_for_current_row, mem_or_rec, vert_position, gridcolumn, **kw_matchfldcompare)
+                #******************************************************************************************************************
+                countrow += 1
+            ix += 1
+        #Now that the grid has been cleared and re-displayed, we need to update the checkboxes to reflect the user's current weight threshold for acceptance - any weight above the specified threshold triggers a checkbox CHECKED. Below the threshold triggers a checkbox DESELECT.
+        self.model.spinhandler()
+        #self.debug_display_arrays()
+        self.container.refresh_canvas()
+        if self.debug: self.model.debug_display_arrays()   #View the Meta_Values and Controls arrays
+
     '''def get_color_for_match_segment(self, matchvals1, matchvals2):
         color = ""
         ix = 1
@@ -1524,61 +1685,6 @@ class MatchReview_View(Frame):
             ix +=1
         return color'''
 
-    def enable_disable_buttons(self):
-        '''Enable or disable buttons related to viewing result files, based on whether those files have already been specified by the user.'''
-        if self.debug: self.logobject.logit("\n In enable_disable_buttons, MatchReviewFile is %s" % (self.model.matchreview_file_to_load_from), True, True, True )
-        if self.model.matchreview_file_to_load_from: 
-            self.enable_display()
-        else:
-            self.disable_display()
-        #Buttons related to saving match choices:		
-        if self.model.matchreview_file_to_save_to:
-            self.enable_save()
-        else:
-            self.disable_save()
-        
-    def enable_display(self):
-        '''if str(self.model.viewing_one_or_all_files).lower() == "one": 
-            pass
-        elif str(self.model.viewing_one_or_all_files).lower() == "all":
-            pass
-        else:
-            if self.model.allow_view_combined_files:
-                pass
-        if self.model.viewing_one_or_all_files is not None:                  #All of the following buttons require that the user has already loaded EITHER a single file or a combined file.
-        '''
-        if (self.start_row + self.rows_to_display) <= len(self.model.meta_values):
-            self.btnNextPage.configure(state=NORMAL)
-        else:
-            self.btnNextPage.configure(state=DISABLED)
-        if self.start_row > 0:
-            self.btnPrevPage.configure(state=NORMAL)
-        else:
-            self.btnPrevPage.configure(state=DISABLED)
-        if str(self.model.sort_asc_or_desc).upper().strip()[:4] == "DESC":
-            self.btnSortDesc.configure(state=DISABLED)                     #Disable this button if the list is already sorted Descending
-            self.btnSortAsc.configure(state=NORMAL)                        #Enable this button if the list is currently sorted Descending
-        if str(self.model.sort_asc_or_desc).upper().strip()[:3] == "ASC":
-            self.btnSortAsc.configure(state=DISABLED)                      #Disable this button if the list is already sorted Ascending
-            self.btnSortDesc.configure(state=NORMAL)                       #Enable this button if the list is currenty sorted Ascending
-
-    def disable_display(self):
-        if self.user_buttons_loaded:
-            if self.model.allow_view_combined_files:
-                pass
-                #self.btnDisplayOneFile.configure(state=DISABLED)
-                #self.btnDisplayAllFiles.configure(state=DISABLED)	
-            self.btnNextPage.configure(state=DISABLED)
-            self.btnSortDesc.configure(state=DISABLED)            #Disable this button if the list is already sorted Descending
-            self.btnSortAsc.configure(state=DISABLED)            #Disable this button if the list is already sorted Ascending
-
-    def enable_save(self):
-        if self.user_buttons_loaded:
-            self.btnSaveToDictFile.configure(state=NORMAL)       #Do not enable this button unless the user has selected a MatchResults file to save as
-
-    def disable_save(self):
-        if self.user_buttons_loaded:
-            self.btnSaveToDictFile.configure(state=DISABLED)       #Do not enable this button unless the user has selected a MatchResults file to save as
         
     def capture_menu_click(self, optmenu_name, var):
         print("\n YOU HAVE CAPTURED THE VALUE: " + str(var.get()) + " FOR " + optmenu_name )
