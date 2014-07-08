@@ -1,13 +1,27 @@
 #!C:\Python33\python.exe -u
 #!/usr/bin/env python
+import sys
 import os
 import platform
 import csv
 import getpass
 import datetime
 import sqlite3
-from FilePath import *
-
+'''#The following libraries are currently within the BigMatch repo
+current, tail = os.path.split(os.path.realpath(__file__))         #/bigmatch/app/
+up_one, tail = os.path.split(current)                             #bigmatch
+up_two, tail = os.path.split(up_one)                              #parent folder of bigmatch
+#print("\n Up_one: '%s', Up_two: '%s'" % (up_one, up_two) )
+python_common_found = None
+if os.path.isdir(os.path.join(up_two, "common_functions", "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "common_functions", "python_common"))     #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Textfile import *
+elif os.path.isdir(os.path.join(up_two, "python_common")):
+    python_common_found = True
+    sys.path.append(os.path.join(up_two, "python_common"))                   #Python_Common subfolder within ETL folder (ETL is a sibling of Bigmatch folder)
+    from Textfile import *
+'''
 gl_font_color = "lightblue"
 gl_font_style = "Arial"
 
@@ -127,6 +141,7 @@ class CHLog():
             to_console = True
             self.message_is_error = True
         #*********************
+        #print("In CHLog, enable_file_logging=%s, to_console=%s, to_logfile=%s" % (self.enable_file_logging, to_console, to_logfile) )
         if(to_console):
            	print(text)
         if(to_logfile):
@@ -137,14 +152,18 @@ class CHLog():
                     if self.message_is_error:
                         if not self.errlogfile_is_open:
                             self.open_errlogfile()
-                    typ = str(type(text)).lower().replace("<class '", "").replace("'>", "")
-                    #print("#--#Type of log text: %s. Type of logfile_handle: %s. message_is_error? %s" % (typ, self.logfile_handle, str(self.message_is_error)))
+                    typ = str(type(text)).lower().replace("<class '", "").replace("<type '", "").replace("'>", "")
+                    #print("#--#Type of log text: %s. Type of logfile_handle: %s. logfile_handle: %s, message_is_error? %s" % (typ, type(self.logfile_handle), self.logfile_handle, str(self.message_is_error)))
                     if typ == "str":
-                        #print("\nAbout to write string to logfile")
+                        #print("About to write string to logfile:  -- '%s'" % (text))
                         #self.logfile_handle.write(text.encode('utf-8'))
-                        self.logfile_handle.write(text)
+                        #******************************************************************************
+                        self.logfile_handle = open(self.logfile, 'a')
+                        self.logfile_handle.write(text)                     #WRITE THE TEXT TO THE LOG
+                        #self.logfile_handle.close()
+                        #******************************************************************************
                         if self.message_is_error:                           #For error messages, write them to the standard log and then write them to an errors-only log for at-a-glance monitoring of errors
-                            print("\nCHLog about to write ERROR message '%s' to error log %s. ErrLogFileHandle type is %s" % (text.strip(), self.error_logfile, type(self.errlogfile_handle)))
+                            #print("\nCHLog about to write ERROR message '%s' to error log %s. ErrLogFileHandle type is %s" % (text.strip(), self.error_logfile, type(self.errlogfile_handle)))
                             self.errlogfile_handle.write(text)
                     elif typ == "list":
                         for listitem in text:

@@ -35,7 +35,7 @@ gl_file_textbox_width = 80
 #******************************************************************************************
 class DataDict_Model():
     class_alias = "datadict"                #Mostly for logging and error handling
-    debug = False
+    debug = True
     error_message = None
     continue_after_error = None             #By default, errors will cause the module to abort and unload. Set continue_after_error to True to override this default.
     abort_all = None                        #By default, an error will kill the currently running module, but will not bring down the whole application (user can still continue working with the Tkinter menu system)
@@ -158,9 +158,9 @@ class DataDict_Model():
                                 self.logobject.logit(row, True, True, True)
                             rowcheck = ', '.join(row)
                             rowcheck = rowcheck.replace(",", "").replace("'", "").strip()
-                            #if self.debug: self.logobject.logit("Rowcheck: %s" % (rowcheck), True, True, True)
+                            if self.debug: self.logobject.logit("Rowcheck: %s" % (rowcheck), True, True, True)
                             if rowcheck == "":
-                                #if self.debug: self.logobject.logit("ROW IS EMPTY. SKIP IT.", True, True, True)
+                                if self.debug: self.logobject.logit("ROW IS EMPTY. SKIP IT.", True, True, True)
                                 continue                  #If row is blank, skip it!
                             else:
                                 pass #if self.debug: self.logobject.logit("Rowcheck populated: %s" % (rowcheck), True, True, True )

@@ -38,7 +38,7 @@ class EntryWidget(Entry):
 
 class EntryGrid(Frame):
     ''' Dialog box with Entry widgets arranged in columns and rows.'''
-    debug = False
+    debug = True
     error_message = ""
     initialized = False	
     parent = None
@@ -58,6 +58,7 @@ class EntryGrid(Frame):
     previous_row_count = None
     previous_column_count = None
     widget_type = None                #At any given time when the grid is being populated, widget_type tells us what kind of grid cell is currently being worked on (examples: 'row_labels' 'column_labels', 'entry')
+    grid_config_dict = None
     #logobject = None
 
     def __init__(self, parent, col_list, row_list, values_list=[], show_grid=False, **kw):
@@ -88,7 +89,7 @@ class EntryGrid(Frame):
         self.row_list = row_list[:]
         print(self.row_list)
         self.config(padx='3.0m', pady='3.0m')
-        self.values_list = values_list[:]
+        self.values_list = values_list[:]          #The grid values that have been passed in from the calling object
         print("\n In EntryGrid._initialize_grid():")
         if self.check_key_exists("width", **kw):
             self.column_width = int(kw["width"])
@@ -123,6 +124,8 @@ class EntryGrid(Frame):
                 #Create the Entry widget which will display the value:
                 w = EntryWidget(self, c, r+1, cellvalue, background=self.entry_bgcolor, fg=self.entry_fontcolor, **kw)
                 self.grid_values[(c-1, r)] = w.value
+        #Copy the grid cell config dict to a property of this class.
+        self.grid_config_dict = kw
         #Important: Register the fact that this Entry Grid has been initialized.  
         #Otherwise the calling object will re-draw the grid, which will work fine except that it'll create dozens of new StringVars each time it is re-populated, and we won't have any way to interrogate those StringVars later to retrieve their values.
         self.initialized = True
@@ -135,16 +138,18 @@ class EntryGrid(Frame):
     def has_been_initialized(self):
         return self.initialized
 
+    #******************************************************************************************************************************
     def repopulate_grid(self, col_list, row_list, values_list=[]):
-        '''Function repopulate_grid() is called when the Entry grid is re-drawn with new values.  This happens all the time, because the grid is first drawn with empty cells, which are over-written after the user chooses a Data Dictionary file.'''	
+        '''Function repopulate_grid() is called when the Entry grid is re-drawn with new values.  This happens all the time, because the grid is first drawn with empty cells, which are over-written after the user chooses a Data Dictionary file.
+        NOTE: repopulate_grid() is typically called by the CALLING OBJECT.'''	
         self.clear_arrays()    #This must be executed BEFORE the row and column lists are loaded in as class properties, because clear_arrays() deletes these class properties.
         self.clear_grid()    #This must be executed BEFORE the row and column lists are loaded in as class properties, because clear_arrays() deletes these class properties.
         self.col_list = col_list[:]
         self.col_list.insert(0, "")  
         self.row_list = row_list[:]
         self.values_list = values_list[:]
-		#Note: the row_list contains one row for every CURRENTLY POPULATED row in the grid. But the user might populate additional rows, which will NOT be reflected in row_list (or any updates) unless row_list is expanded to encompass all the rows that are at the user's disposal.
-        print("\nrow_list has %s items. values_list has %s items. Num_initial_rows is %s" % (len(self.row_list), len(values_list), self.num_initial_rows))
+		#Note: the row_list contains one row for every CURRENTLY POPULATED row in the grid. But the user might populate additional rows, which will NOT be reflected in row_list (or any updates) unless row_list AND cell_widgets are expanded to encompass all the rows that are at the user's disposal.
+        print("\nRow_list has %s items. values_list has %s items. Num_initial_rows is %s" % (len(self.row_list), len(values_list), self.num_initial_rows))
         if len(self.row_list) < self.num_initial_rows:
             if self.debug: print("ADDING rows to self.row_list.")
             ir = 0
@@ -160,6 +165,26 @@ class EntryGrid(Frame):
             for ir in range(len(self.values_list), self.num_initial_rows-1):
                 if self.debug: print("Adding to values_list: %s" % (ir +1))
                 self.values_list.append(tmpvals)
+
+        #Make sure self.cell_widgets is expanded if necessary to hold the values passed in as self.values_list
+        print(\n\nLen(cell_widgets): %s, Len(self.col_list): %s, num_initial_rows: %s, Len(col_list) * num_initial_rows: %s:" % (len(cell_widgets), len(self.col_list), self.num_initial_rows, (len(col_list) * num_initial_rows)   ) )
+        if len(self.cell_widgets) < (len(self.col_list) * self.num_initial_rows):
+            if self.debug: print("ADDING cells to self.cell_widgets.")
+            for r in range(0, len(self.row_list)):
+                for c in range(1, len(self.col_list)):
+                    cellvalue = StringVar()
+                    cellvalue = ""
+                    #if len(values_list) > 0:
+                    #    cellvalue = values_list[r][c-1]			#The values that will be copied into this cell from the "values_list" LIST OF LISTS.
+                    #else:
+                    #    cellvalue = ""
+                    #cellvalue = cellvalue.replace("\n", "")
+                    #cellvalue = cellvalue.replace(chr(10), "")
+                    #cellvalue = cellvalue.replace(chr(13), "")
+                    #print ("c: %s, r: %s ... cell value: %s" % (str(c), str(r), str(cellvalue) ) )
+                    #Create the Entry widget which will display the value:
+                    w = EntryWidget(self, c, r+1, cellvalue, background=self.entry_bgcolor, fg=self.entry_fontcolor, self.grid_config_dict)
+                    self.grid_values[(c-1, r)] = w.value
         if self.debug: 
             print("\n Column list:")
             print(self.col_list)
@@ -283,7 +308,8 @@ class EntryGrid(Frame):
                 kw_hdr["width"] = None                       #If a "width" key occurs in the **kwargs, get_column_width() accepts it as the valid width--so reset the Width in **kwargs
 
     def retrieve_grid_values(self):
-        '''Traverse the cells of this Tkinter Entry grid and copy the values of each cell into an array.'''
+        '''Traverse the cells of this Tkinter Entry grid and copy the values of each cell into an array.
+        NOTE: this function is typically called by the CALING OBJECT.'''
         print("\n **********************************************")
         print("CELL WIDGET TEXT PROPERTIES:")
         row_values = []
@@ -303,10 +329,10 @@ class EntryGrid(Frame):
             self.meta_values_after_edit.append(row_values)
         #View the results:
         for row in self.meta_values_after_edit:
-            pass
-            #print("\n Next row:")
-            #for col in row:
-            #    print(col)
+            #pass
+            print("\n Next row:")
+            for col in row:
+                print(col)
         
         return self.meta_values_after_edit
 
