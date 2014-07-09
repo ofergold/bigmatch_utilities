@@ -148,6 +148,7 @@ class EntryGrid(Frame):
         self.col_list.insert(0, "")  
         self.row_list = row_list[:]
         self.values_list = values_list[:]
+        rows_in_list_before_repop = len(self.row_list)
 		#Note: the row_list contains one row for every CURRENTLY POPULATED row in the grid. But the user might populate additional rows, which will NOT be reflected in row_list (or any updates) unless row_list AND cell_widgets are expanded to encompass all the rows that are at the user's disposal.
         print("\nRow_list has %s items. values_list has %s items. Num_initial_rows is %s" % (len(self.row_list), len(values_list), self.num_initial_rows))
         if len(self.row_list) < self.num_initial_rows:
@@ -156,35 +157,38 @@ class EntryGrid(Frame):
             for ir in range(len(self.row_list), self.num_initial_rows-1):
                 if self.debug: print("Adding to row_list: %s" % (ir +1))
                 self.row_list.append(ir)
-        if len(self.values_list) < self.num_initial_rows:
+        if len(self.values_list) < len(self.row_list):
             print("ADDING rows of lists to self.values_list.")
             tmpvals = []
             for col in self.col_list:
                 tmpvals.append('')
             ir = 0
-            for ir in range(len(self.values_list), self.num_initial_rows-1):
+            for ir in range(len(self.values_list), len(self.row_list)):
                 if self.debug: print("Adding to values_list: %s" % (ir +1))
                 self.values_list.append(tmpvals)
 
-        #Make sure self.cell_widgets is expanded if necessary to hold the values passed in as self.values_list
-        print(\n\nLen(cell_widgets): %s, Len(self.col_list): %s, num_initial_rows: %s, Len(col_list) * num_initial_rows: %s:" % (len(cell_widgets), len(self.col_list), self.num_initial_rows, (len(col_list) * num_initial_rows)   ) )
+        #Make sure self.cell_widgets is expanded if necessary to hold the values passed in as self.values_list.
+        #But do NOT add a new Entry widget for cells that have already been displayed!
+        print("\n\nRows_in_list_before_repop: %s, Len(self.row_list): %s, Len(cell_widgets): %s, Len(self.col_list): %s, num_initial_rows: %s, Len(col_list) x num_initial_rows: %s:" % (rows_in_list_before_repop, len(self.row_list), len(self.cell_widgets), len(self.col_list), self.num_initial_rows, (len(col_list) * self.num_initial_rows)   ) )
         if len(self.cell_widgets) < (len(self.col_list) * self.num_initial_rows):
             if self.debug: print("ADDING cells to self.cell_widgets.")
             for r in range(0, len(self.row_list)):
-                for c in range(1, len(self.col_list)):
-                    cellvalue = StringVar()
-                    cellvalue = ""
-                    #if len(values_list) > 0:
-                    #    cellvalue = values_list[r][c-1]			#The values that will be copied into this cell from the "values_list" LIST OF LISTS.
-                    #else:
-                    #    cellvalue = ""
-                    #cellvalue = cellvalue.replace("\n", "")
-                    #cellvalue = cellvalue.replace(chr(10), "")
-                    #cellvalue = cellvalue.replace(chr(13), "")
-                    #print ("c: %s, r: %s ... cell value: %s" % (str(c), str(r), str(cellvalue) ) )
-                    #Create the Entry widget which will display the value:
-                    w = EntryWidget(self, c, r+1, cellvalue, background=self.entry_bgcolor, fg=self.entry_fontcolor, self.grid_config_dict)
-                    self.grid_values[(c-1, r)] = w.value
+                if r >= rows_in_list_before_repop:
+                    for c in range(1, len(self.col_list)):
+                        cellvalue = StringVar()
+                        cellvalue = ""
+                        #if len(values_list) > 0:
+                        #    cellvalue = values_list[r][c-1]			#The values that will be copied into this cell from the "values_list" LIST OF LISTS.
+                        #else:
+                        #    cellvalue = ""
+                        #cellvalue = cellvalue.replace("\n", "")
+                        #cellvalue = cellvalue.replace(chr(10), "")
+                        #cellvalue = cellvalue.replace(chr(13), "")
+                        #print ("c: %s, r: %s ... cell value: %s" % (str(c), str(r), str(cellvalue) ) )
+                        #Create the Entry widget which will display the value:
+                        kw = self.grid_config_dict
+                        w = EntryWidget(self, c, r+1, cellvalue, background=self.entry_bgcolor, fg=self.entry_fontcolor, **kw)
+                        self.grid_values[(c-1, r)] = w.value
         if self.debug: 
             print("\n Column list:")
             print(self.col_list)
@@ -217,7 +221,7 @@ class EntryGrid(Frame):
                         cell["object"].grid(column=c, row=r)
                         w = cell["object"]
                         self.grid_values[(c-1, r)] = w.value
-                        if self.debug: print("AFTER: X: %s Y: %s Cell value: %s" % (str(cell["x"]), str(cell["y"]), str(cell["object"].value.get())))
+                        #if self.debug: print("AFTER: X: %s Y: %s Cell value: %s" % (str(cell["x"]), str(cell["y"]), str(cell["object"].value.get())))
                         found = True
                         break
                 if found == False:
@@ -314,8 +318,8 @@ class EntryGrid(Frame):
         print("CELL WIDGET TEXT PROPERTIES:")
         row_values = []
         y_row = 1
-        for y_row in range(1, self.num_initial_rows):
-        #for y_row in range(1, len(self.row_list)+1):
+        #for y_row in range(1, self.num_initial_rows):
+        for y_row in range(1, len(self.row_list)+1):
         #for cell in self.cell_widgets:
             #print("X: %s Y: %s Cell value: %s" % (str(cell["x"]), str(cell["y"]), str(cell["object"].value.get())))
             row_values = []								#Populate another list with all values from this ROW.
